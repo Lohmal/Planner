@@ -1,0 +1,50 @@
+# Planner Uygulaması
+
+Bu proje, Next.js ve SQLite kullanılarak geliştirilmiş bir planlayıcı uygulamasıdır.
+
+## Özellikler
+
+- Görev ekleme, düzenleme ve silme
+- Tarih ve zaman takibi
+- Basit ve kullanıcı dostu arayüz
+
+## Teknolojiler
+
+- **Next.js:** React tabanlı framework
+- **SQLite:** Hafif veritabanı yönetim sistemi
+- **Node.js:** JavaScript çalışma zamanı
+
+## Kurulum
+
+1. Projeyi repodan klonlayın:
+
+   ```bash
+   git clone <repo-url>
+   cd Planner
+   ```
+
+2. Gerekli paketleri yükleyin:
+
+   ```bash
+   npm install
+   ```
+
+3. Veritabanı yapılandırmasını kontrol edin:
+
+   - Uygulama, `database.sqlite` dosyasını ya mevcut dosyayı kullanır ya da ilk çalıştırmada oluşturur.
+
+4. Geliştirme sunucusunu başlatın:
+
+   ```bash
+   npm run dev
+   ```
+
+## Yapılandırma
+
+Proje ayarlarının çoğu `next.config.js` ve `.env` dosyalarından yönetilir.
+Veritabanı bağlantı ayarlarınızı bu dosyalardan düzenleyebilirsiniz.
+
+## Kullanım
+
+- Tarayıcınızı açın ve `http://localhost:3000` adresine gidin.
+- Uygulamanın arayüzünden plan ekleme, düzenleme ve silme işlemlerini gerçekleştirebilirsiniz.
