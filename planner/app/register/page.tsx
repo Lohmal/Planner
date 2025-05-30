@@ -6,12 +6,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, LoginForm } from "@/types/validators";
+import { registerSchema, RegisterForm } from "@/types/validators";
 import { ROUTES, APP_CONSTANTS } from "@/types/constants";
 
-export default function Login() {
+export default function Register() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { register: registerUser } = useAuth();
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -19,28 +19,37 @@ export default function Login() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
     defaultValues: {
+      username: "",
       email: "",
       password: "",
+      confirmPassword: "",
+      fullName: "",
     },
   });
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: RegisterForm) => {
     setError("");
     setIsLoading(true);
 
     try {
-      const success = await login(data.email, data.password);
-      if (!success) {
-        setError("Geçersiz e-posta veya şifre");
+      const success = await registerUser({
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        fullName: data.fullName,
+      });
+
+      if (success) {
+        // Başarılı kayıt sonrası giriş sayfasına yönlendir
+        router.push(ROUTES.LOGIN);
       } else {
-        // Başarılı giriş sonrası gösterge sayfasına yönlendir
-        router.push(ROUTES.DASHBOARD);
+        setError("Kayıt olurken bir hata oluştu. E-posta adresi zaten kullanılıyor olabilir.");
       }
     } catch (error) {
-      setError("Giriş yapılırken bir hata oluştu");
+      setError("Kayıt olurken bir hata oluştu");
     } finally {
       setIsLoading(false);
     }
@@ -62,14 +71,14 @@ export default function Login() {
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+                d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z"
               />
             </svg>
           </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">{APP_CONSTANTS.TITLE}</h2>
+        <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">Hesap Oluştur</h2>
         <p className="mt-2 text-center text-sm text-gray-600">
-          Hesabınıza giriş yaparak gruplarınızı ve görevlerinizi yönetin
+          {APP_CONSTANTS.TITLE}'na kaydolarak görevlerinizi yönetmeye başlayın
         </p>
       </div>
 
@@ -79,8 +88,25 @@ export default function Login() {
 
           <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
             <div>
+              <label htmlFor="username" className="block text-sm font-medium">
+                Kullanıcı Adı
+              </label>
+              <div className="mt-1">
+                <input
+                  id="username"
+                  type="text"
+                  autoComplete="username"
+                  className="input w-full"
+                  disabled={isLoading}
+                  {...register("username")}
+                />
+                {errors.username && <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>}
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="email" className="block text-sm font-medium">
-                E-posta adresi
+                E-posta Adresi
               </label>
               <div className="mt-1">
                 <input
@@ -96,6 +122,21 @@ export default function Login() {
             </div>
 
             <div>
+              <label htmlFor="fullName" className="block text-sm font-medium">
+                Ad Soyad (İsteğe Bağlı)
+              </label>
+              <div className="mt-1">
+                <input
+                  id="fullName"
+                  type="text"
+                  className="input w-full"
+                  disabled={isLoading}
+                  {...register("fullName")}
+                />
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="password" className="block text-sm font-medium">
                 Şifre
               </label>
@@ -103,7 +144,7 @@ export default function Login() {
                 <input
                   id="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   className="input w-full"
                   disabled={isLoading}
                   {...register("password")}
@@ -113,33 +154,36 @@ export default function Login() {
             </div>
 
             <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-medium">
+                Şifre (Tekrar)
+              </label>
+              <div className="mt-1">
+                <input
+                  id="confirmPassword"
+                  type="password"
+                  autoComplete="new-password"
+                  className="input w-full"
+                  disabled={isLoading}
+                  {...register("confirmPassword")}
+                />
+                {errors.confirmPassword && (
+                  <p className="mt-1 text-sm text-red-600">{errors.confirmPassword.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
               <button type="submit" className="btn btn-primary w-full" disabled={isLoading}>
-                {isLoading ? "Giriş yapılıyor..." : "Giriş Yap"}
+                {isLoading ? "Kayıt Yapılıyor..." : "Kayıt Ol"}
               </button>
             </div>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Demo bilgileri</span>
-              </div>
-            </div>
-            <p className="mt-3 text-center text-sm text-gray-600">
-              <span className="font-semibold">E-posta:</span> admin@example.com
-              <br />
-              <span className="font-semibold">Şifre:</span> password
-            </p>
-          </div>
-
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              Hesabınız yok mu?{" "}
-              <Link href={ROUTES.REGISTER} className="text-blue-600 hover:text-blue-500">
-                Kayıt ol
+              Zaten hesabınız var mı?{" "}
+              <Link href={ROUTES.LOGIN} className="text-blue-600 hover:text-blue-500">
+                Giriş yap
               </Link>
             </p>
           </div>
