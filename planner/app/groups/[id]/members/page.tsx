@@ -1,110 +1,227 @@
-import { getGroupById, getGroupMembers, getUserById, initDB, isGroupAdmin, isGroupMember } from "@/lib/db";
-import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import { ROUTES } from "@/types/constants";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@/lib/authContext";
+import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { User, UserPlus, Mail, Shield, LogOut, X } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export default function GroupMembersPage() {
+  const router = useRouter();
+  const params = useParams();
+  const groupId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
 
-async function getData(id: string) {
-  await initDB();
+  const { user } = useAuth();
+  const [members, setMembers] = useState<any[]>([]);
+  const [groupName, setGroupName] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [removingUserId, setRemovingUserId] = useState<string | null>(null);
 
-  const cookieStore = await cookies();
-  const userId = cookieStore.get("userId");
+  useEffect(() => {
+    if (!groupId || !user) return;
 
-  if (!userId?.value) {
-    redirect(ROUTES.LOGIN);
-  }
+    fetchGroupData();
+  }, [groupId, user]);
 
-  const user = await getUserById(userId.value);
+  const fetchGroupData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  if (!user) {
-    redirect(ROUTES.LOGIN);
-  }
+      // Fetch group details
+      const groupResponse = await fetch(API_ENDPOINTS.GROUP_DETAIL(groupId));
+      if (!groupResponse.ok) {
+        throw new Error("Grup bilgileri alınamadı");
+      }
 
-  const group = await getGroupById(id);
+      const groupData = await groupResponse.json();
+      if (!groupData.success) {
+        throw new Error(groupData.message || "Grup bulunamadı");
+      }
 
-  if (!group) {
-    notFound();
-  }
+      setGroupName(groupData.data.name);
 
-  // Kullanıcının gruba üye olup olmadığını kontrol et
-  const isMember = await isGroupMember(id, userId.value);
+      // Fetch group members
+      const membersResponse = await fetch(API_ENDPOINTS.GROUP_MEMBERS(groupId));
+      if (!membersResponse.ok) {
+        throw new Error("Grup üyeleri alınamadı");
+      }
 
-  if (!isMember) {
-    // Eğer üye değilse gruplara yönlendir
-    redirect(ROUTES.GROUPS);
-  }
+      const membersData = await membersResponse.json();
+      if (!membersData.success) {
+        throw new Error(membersData.message || "Grup üyeleri alınamadı");
+      }
 
-  const members = await getGroupMembers(id);
-  const isAdmin = await isGroupAdmin(id, userId.value);
+      setMembers(membersData.data || []);
 
-  return {
-    user,
-    group,
-    members,
-    isAdmin,
+      // Check if current user is admin
+      const currentUserMember = membersData.data.find((member: any) => member.user_id === Number(user!.id));
+      setIsAdmin(currentUserMember?.role === "admin");
+    } catch (error) {
+      console.error("Group data fetch error:", error);
+      setError(error instanceof Error ? error.message : "Grup bilgileri yüklenirken bir hata oluştu");
+    } finally {
+      setLoading(false);
+    }
   };
-}
 
-export default async function GroupMembersPage({ params }: { params: { id: string } }) {
-  const resolvedParams = await Promise.resolve(params);
-  const { user, group, members, isAdmin } = await getData(resolvedParams.id);
+  const handleRemoveMember = async (userId: number) => {
+    if (!confirm("Bu kullanıcıyı gruptan çıkarmak istediğinizden emin misiniz?")) {
+      return;
+    }
+
+    setRemovingUserId(userId.toString());
+
+    try {
+      const response = await fetch(`/api/groups/${groupId}/members/${userId}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Kullanıcı çıkarılırken bir hata oluştu");
+      }
+
+      // Update the members list
+      setMembers(members.filter((member) => member.user_id !== userId));
+    } catch (error) {
+      console.error("Error removing member:", error);
+      alert(error instanceof Error ? error.message : "Kullanıcı çıkarılırken bir hata oluştu");
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
+  const handleLeaveGroup = async () => {
+    // Early return if user doesn't exist
+    if (!user?.id) return;
+
+    if (!confirm("Bu gruptan ayrılmak istediğinizden emin misiniz?")) {
+      return;
+    }
+
+    // Use non-null assertion operator since we already checked above
+    setRemovingUserId(user!.id.toString());
+
+    try {
+      const response = await fetch(`/api/groups/${groupId}/members/${user!.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Gruptan ayrılırken bir hata oluştu");
+      }
+
+      // Redirect to groups page
+      router.push(ROUTES.GROUPS);
+    } catch (error) {
+      console.error("Error leaving group:", error);
+      alert(error instanceof Error ? error.message : "Gruptan ayrılırken bir hata oluştu");
+    } finally {
+      setRemovingUserId(null);
+    }
+  };
+
+  // ...existing loading and error states...
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-3xl font-bold">Grup Üyeleri</h1>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">Grup Üyeleri</h1>
+          <p className="text-gray-600 dark:text-gray-300">{groupName}</p>
+        </div>
+
         <div className="flex gap-2">
+          {isAdmin && (
+            <Link href={`/groups/${groupId}/invite`} className="btn btn-primary flex items-center">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Üye Davet Et
+            </Link>
+          )}
+
           <Link
-            href={ROUTES.GROUP_DETAIL(group.id)}
+            href={ROUTES.GROUP_DETAIL(groupId)}
             className="btn bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
           >
             Gruba Dön
           </Link>
-          {isAdmin && (
-            <Link href={`/groups/${group.id}/invite`} className="btn btn-primary flex items-center">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Üye Davet Et
-            </Link>
+
+          {/* Leave Group Button */}
+          {user && (
+            <button onClick={handleLeaveGroup} className="btn btn-danger flex items-center" disabled={!!removingUserId}>
+              <LogOut className="h-4 w-4 mr-2" />
+              Gruptan Ayrıl
+            </button>
           )}
         </div>
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-2xl font-bold">{group.name}</h2>
-          {group.description && <p className="mt-2 text-gray-600 dark:text-gray-300">{group.description}</p>}
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Toplam {members.length} üye bulunuyor</p>
+          <h2 className="text-xl font-semibold flex items-center">
+            <User className="h-5 w-5 mr-2" />
+            Üyeler ({members.length})
+          </h2>
         </div>
 
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-          {members.map((member) => (
-            <li key={member.id} className="p-4 flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                  {member.full_name
-                    ? member.full_name.charAt(0).toUpperCase()
-                    : member.username?.charAt(0).toUpperCase() || "U"}
+        {members.length === 0 ? (
+          <div className="p-6 text-center text-gray-500 dark:text-gray-400">Bu grupta henüz üye bulunmuyor.</div>
+        ) : (
+          <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+            {members.map((member) => (
+              <li key={member.id} className="p-6 flex items-center justify-between">
+                <div className="flex items-start">
+                  <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-medium">
+                    {(member.full_name || member.username || "").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="ml-4">
+                    <div className="font-medium flex items-center">
+                      {member.full_name || member.username}
+                      {member.role === "admin" && (
+                        <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 text-xs rounded-full flex items-center">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Yönetici
+                        </span>
+                      )}
+                      {user && member.user_id === Number(user.id) && (
+                        <span className="ml-2 px-2 py-0.5 bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 text-xs rounded-full">
+                          Siz
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center">
+                      <Mail className="h-3 w-3 mr-1" />
+                      {member.email}
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium">{member.full_name || member.username || "Bilinmeyen Kullanıcı"}</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {member.role === "admin" ? "Yönetici" : "Üye"}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                {member.user_id === user.id && (
-                  <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-sm rounded">
-                    Siz
-                  </span>
+
+                {/* Remove member button - only for admins and not themselves */}
+                {isAdmin && user && member.user_id !== Number(user.id) && (
+                  <button
+                    onClick={() => handleRemoveMember(member.user_id)}
+                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Üyeyi çıkar"
+                    disabled={removingUserId === member.user_id.toString()}
+                  >
+                    {removingUserId === member.user_id.toString() ? (
+                      <span className="animate-spin inline-block h-5 w-5 border-2 border-t-red-500 border-red-200 rounded-full"></span>
+                    ) : (
+                      <X className="h-5 w-5" />
+                    )}
+                  </button>
                 )}
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

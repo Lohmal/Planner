@@ -1,79 +1,150 @@
-import {
-  getGroupById,
-  getGroupMembers,
-  getSubgroups,
-  getTasksByGroupId,
-  getUserById,
-  initDB,
-  isGroupAdmin,
-  isGroupMember,
-} from "@/lib/db";
-import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
-import { ROUTES } from "@/types/constants";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { useAuth } from "@/lib/authContext";
+import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
 import GroupMembers from "@/components/groups/GroupMembers";
 import GroupTasks from "@/components/groups/GroupTasks";
+import { Folders } from "lucide-react";
 
-export const dynamic = "force-dynamic";
+export default function GroupDetailPage() {
+  const router = useRouter();
+  const params = useParams();
+  const groupId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
 
-async function getData(id: string) {
-  await initDB();
+  const { user } = useAuth();
+  const [group, setGroup] = useState<any>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
+  const [subgroups, setSubgroups] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const cookieStore = await cookies();
-  const userId = cookieStore.get("userId");
+  // Fetch data function
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  if (!userId?.value) {
-    redirect(ROUTES.LOGIN);
-  }
+      // Fetch group details
+      const groupResponse = await fetch(API_ENDPOINTS.GROUP_DETAIL(groupId));
 
-  const user = await getUserById(userId.value);
+      if (!groupResponse.ok) {
+        throw new Error("Grup bilgileri alınamadı");
+      }
 
-  if (!user) {
-    redirect(ROUTES.LOGIN);
-  }
+      const groupData = await groupResponse.json();
 
-  const group = await getGroupById(id);
+      if (!groupData.success || !groupData.data) {
+        throw new Error(groupData.message || "Grup bulunamadı");
+      }
 
-  if (!group) {
-    notFound();
-  }
+      const fetchedGroup = groupData.data;
+      setGroup(fetchedGroup);
 
-  // Kullanıcının gruba üye olup olmadığını kontrol et
-  const isMember = await isGroupMember(id, userId.value);
+      // Check if current user is creator of the group
+      setIsAdmin(fetchedGroup && user ? fetchedGroup.creator_id === user.id : false);
 
-  if (!isMember) {
-    // Eğer üye değilse gruplara yönlendir
-    redirect(ROUTES.GROUPS);
-  }
-
-  const isAdmin = await isGroupAdmin(id, userId.value);
-  const members = await getGroupMembers(id);
-  const tasks = await getTasksByGroupId(id);
-  const subgroups = await getSubgroups(id);
-
-  return {
-    user,
-    group,
-    members,
-    tasks,
-    isAdmin,
-    subgroups,
+      // Fetch group members, tasks, and subgroups
+      await Promise.all([fetchGroupMembers(groupId), fetchGroupTasks(groupId), fetchGroupSubgroups(groupId)]);
+    } catch (error) {
+      console.error("Group data fetch error:", error);
+      setError(error instanceof Error ? error.message : "Grup bilgileri yüklenirken bir hata oluştu");
+    } finally {
+      setLoading(false);
+    }
   };
-}
 
-export default async function GroupDetailPage({ params }: { params: { id: string } }) {
-  const resolvedParams = await Promise.resolve(params);
-  const { user, group, members, tasks, isAdmin, subgroups } = await getData(resolvedParams.id);
+  const fetchGroupMembers = async (gid: string) => {
+    try {
+      const membersResponse = await fetch(API_ENDPOINTS.GROUP_MEMBERS(gid));
+
+      if (!membersResponse.ok) {
+        throw new Error("Grup üyeleri alınamadı");
+      }
+
+      const membersData = await membersResponse.json();
+
+      if (!membersData.success) {
+        throw new Error(membersData.message || "Grup üyeleri alınamadı");
+      }
+
+      setMembers(membersData.data || []);
+
+      // Also check if current user is admin based on group members
+      if (user) {
+        const currentMember = membersData.data.find((m: any) => m.user_id === Number(user.id));
+        if (currentMember && currentMember.role === "admin") {
+          setIsAdmin(true);
+        }
+      }
+    } catch (error) {
+      console.error("Members fetch error:", error);
+    }
+  };
+
+  const fetchGroupTasks = async (gid: string) => {
+    try {
+      // Fix: Use a proper API endpoint for group tasks
+      const tasksResponse = await fetch(`/api/tasks?groupId=${gid}`);
+
+      if (!tasksResponse.ok) {
+        throw new Error("Görevler alınamadı");
+      }
+
+      const tasksData = await tasksResponse.json();
+
+      if (!tasksData.success) {
+        throw new Error(tasksData.message || "Görevler alınamadı");
+      }
+
+      setTasks(tasksData.data || []);
+    } catch (error) {
+      console.error("Tasks fetch error:", error);
+    }
+  };
+
+  const fetchGroupSubgroups = async (gid: string) => {
+    try {
+      const subgroupsResponse = await fetch(API_ENDPOINTS.GROUP_SUBGROUPS(gid));
+
+      if (!subgroupsResponse.ok) {
+        throw new Error("Alt gruplar alınamadı");
+      }
+
+      const subgroupsData = await subgroupsResponse.json();
+
+      if (!subgroupsData.success) {
+        throw new Error(subgroupsData.message || "Alt gruplar alınamadı");
+      }
+
+      setSubgroups(subgroupsData.data || []);
+    } catch (error) {
+      console.error("Subgroups fetch error:", error);
+      // Just use empty array for subgroups if there's an error
+      setSubgroups([]);
+    }
+  };
+
+  useEffect(() => {
+    if (!groupId || !user) return;
+
+    fetchData();
+  }, [groupId, user]);
 
   return (
-    <div className="space-y-8">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">{group.name}</h1>
-            {group.description && <p className="mt-2 text-gray-600 dark:text-gray-300">{group.description}</p>}
-          </div>
+    <div className="max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-3xl font-bold">{group?.name || "Grup Detayları"}</h1>
+          {group?.description && <p className="text-gray-600 dark:text-gray-300">{group.description}</p>}
+        </div>
+
+        <div className="flex gap-2">
           {isAdmin && (
             <Link href={`/groups/${group.id}/edit`} className="btn btn-primary">
               Grubu Düzenle
@@ -82,98 +153,114 @@ export default async function GroupDetailPage({ params }: { params: { id: string
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2">
-          {/* Görevler Bölümü */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Görevler</h2>
-              <div className="flex gap-2">
-                <Link href={`/groups/${group.id}/tasks`} className="text-blue-600 hover:underline text-sm">
-                  Tümünü Gör
-                </Link>
-                <Link href={ROUTES.TASK_CREATE} className="btn btn-sm btn-primary">
-                  Görev Oluştur
-                </Link>
-              </div>
-            </div>
-            <GroupTasks tasks={tasks.slice(0, 5)} />
-            {tasks.length > 5 && (
-              <div className="mt-4 text-center">
-                <Link href={`/groups/${group.id}/tasks`} className="text-blue-600 hover:underline">
-                  +{tasks.length - 5} görev daha
-                </Link>
-              </div>
-            )}
+      {/* Group Info */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+        <h2 className="text-xl font-semibold mb-4">Grup Bilgileri</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h3 className="font-medium">Grup Adı</h3>
+            <p className="text-gray-700 dark:text-gray-300">{group?.name}</p>
           </div>
-
-          {/* Alt Gruplar Bölümü */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Alt Gruplar</h2>
-              <div className="flex gap-2">
-                <Link href={`/groups/${group.id}/subgroups`} className="text-blue-600 hover:underline text-sm">
-                  Tümünü Gör
-                </Link>
-                <Link href={`/groups/${group.id}/subgroups/create`} className="btn btn-sm btn-primary">
-                  Alt Grup Oluştur
-                </Link>
-              </div>
-            </div>
-
-            {subgroups.length === 0 ? (
-              <div className="text-center py-6">
-                <p className="text-gray-500 dark:text-gray-400 mb-4">Bu grupta henüz alt grup bulunmamaktadır.</p>
-                <Link href={`/groups/${group.id}/subgroups/create`} className="btn btn-primary">
-                  Alt Grup Oluştur
-                </Link>
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-2 gap-4">
-                {subgroups.slice(0, 4).map((subgroup) => (
-                  <Link
-                    key={subgroup.id}
-                    href={`/groups/${group.id}/subgroups/${subgroup.id}`}
-                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
-                  >
-                    <h3 className="font-semibold mb-1">{subgroup.name}</h3>
-                    {subgroup.description && (
-                      <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2">{subgroup.description}</p>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-
-            {subgroups.length > 4 && (
-              <div className="mt-4 text-center">
-                <Link href={`/groups/${group.id}/subgroups`} className="text-blue-600 hover:underline">
-                  +{subgroups.length - 4} alt grup daha
-                </Link>
-              </div>
-            )}
+          <div>
+            <h3 className="font-medium">Açıklama</h3>
+            <p className="text-gray-700 dark:text-gray-300">{group?.description || "Bu grup için bir açıklama yok."}</p>
+          </div>
+          <div>
+            <h3 className="font-medium">Oluşturan</h3>
+            <p className="text-gray-700 dark:text-gray-300">{group?.creator_full_name || group?.creator_username}</p>
+          </div>
+          <div>
+            <h3 className="font-medium">Üyeler</h3>
+            <p className="text-gray-700 dark:text-gray-300">{members.length} üye</p>
+          </div>
+          <div>
+            <h3 className="font-medium">Alt Gruplar</h3>
+            <p className="text-gray-700 dark:text-gray-300">{subgroups.length} alt grup</p>
+          </div>
+          <div>
+            <h3 className="font-medium">Görevler</h3>
+            <p className="text-gray-700 dark:text-gray-300">{tasks.length} görev</p>
           </div>
         </div>
+      </div>
 
-        <div>
-          {/* Üyeler Bölümü */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Üyeler</h2>
-              <Link href={`/groups/${group.id}/members`} className="text-blue-600 hover:underline text-sm">
-                Tümünü Gör
+      {/* Subgroups Section */}
+      {subgroups.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4 flex items-center">
+            <Folders className="h-5 w-5 mr-2" />
+            Alt Gruplar
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {subgroups.map((subgroup: any) => (
+              <Link
+                key={subgroup.id}
+                href={ROUTES.SUBGROUP_DETAIL(groupId, subgroup.id)}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+              >
+                <h3 className="font-medium">{subgroup.name}</h3>
+                {subgroup.description && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{subgroup.description}</p>
+                )}
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                  Oluşturan: {subgroup.creator_full_name || subgroup.creator_username}
+                </div>
               </Link>
-            </div>
-            <GroupMembers members={members.slice(0, 5)} currentUserId={user.id} />
-            {members.length > 5 && (
-              <div className="mt-4 text-center">
-                <Link href={`/groups/${group.id}/members`} className="text-blue-600 hover:underline">
-                  +{members.length - 5} üye daha
-                </Link>
-              </div>
-            )}
+            ))}
           </div>
         </div>
+      )}
+
+      {/* Members Preview */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold flex items-center">
+            {/* User icon */}
+            Üyeler ({members.length})
+          </h2>
+          <Link
+            href={`/groups/${groupId}/members`}
+            className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
+          >
+            Tümünü Gör
+          </Link>
+        </div>
+
+        {user ? (
+          <GroupMembers members={members.slice(0, 5)} currentUserId={Number(user.id)} />
+        ) : (
+          <p className="text-gray-500 dark:text-gray-400">Üyeleri görmek için giriş yapmalısınız.</p>
+        )}
+
+        {members.length > 5 && (
+          <div className="mt-4 text-center">
+            <Link href={`/groups/${groupId}/members`} className="text-blue-600 hover:underline">
+              +{members.length - 5} üye daha
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {/* Tasks Preview */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold flex items-center">
+            {/* ListTodo icon */}
+            Görevler
+          </h2>
+          <Link href={`/groups/${groupId}/tasks`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+            Tümünü Gör
+          </Link>
+        </div>
+
+        <GroupTasks tasks={tasks.slice(0, 5)} />
+        {tasks.length > 5 && (
+          <div className="mt-4 text-center">
+            <Link href={`/groups/${groupId}/tasks`} className="text-blue-600 hover:underline">
+              +{tasks.length - 5} görev daha
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

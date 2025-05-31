@@ -13,19 +13,23 @@ export const API_ENDPOINTS = {
   GROUPS: "/api/groups",
   GROUP_DETAIL: (id: string | number) => `/api/groups/${id}`,
   GROUP_MEMBERS: (id: string | number) => `/api/groups/${id}/members`,
-  GROUP_TASKS: (id: string | number) => `/api/groups/${id}/tasks`,
   GROUP_SUBGROUPS: (id: string | number) => `/api/groups/${id}/subgroups`,
-  SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
-    `/api/groups/${groupId}/subgroups/${subgroupId}`,
+  GROUP_INVITATIONS: "/api/group-invitations",
+  GROUP_INVITATION_RESPOND: (id: string | number) => `/api/group-invitations/${id}/respond`,
 
   TASKS: "/api/tasks",
   TASK_DETAIL: (id: string | number) => `/api/tasks/${id}`,
-  USER_TASKS: (id: string | number) => `/api/users/${id}/tasks`,
-  TASK_COMMENTS: (taskId: string | number) => `/api/tasks/${taskId}/comments`,
+  TASK_COMMENTS: (id: string | number) => `/api/tasks/${id}/comments`,
+  GROUP_TASKS: (id: string | number) => `/api/tasks?groupId=${id}`,
 
   // Eski API'ler
   KISILER: "/api/kisiler",
   KISI_DETAY: (id: string | number) => `/api/kisiler/${id}`,
+
+  // Yeni alt grup API'leri
+  SUBGROUP_API_DETAIL: (id: string | number) => `/api/subgroups/${id}`,
+  SUBGROUP_API_TASKS: (id: string | number) => `/api/subgroups/${id}/tasks`,
+  SEARCH_USERS: "/api/users/search",
 };
 
 /**
@@ -34,32 +38,23 @@ export const API_ENDPOINTS = {
 export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
-  REGISTER: "/signup",
+  REGISTER: "/register",
   DASHBOARD: "/dashboard",
-
+  PROFILE: "/profile",
   GROUPS: "/groups",
   GROUP_CREATE: "/groups/create",
   GROUP_DETAIL: (id: string | number) => `/groups/${id}`,
   GROUP_EDIT: (id: string | number) => `/groups/${id}/edit`,
   GROUP_MEMBERS: (id: string | number) => `/groups/${id}/members`,
-  GROUP_TASKS: (id: string | number) => `/groups/${id}/tasks`,
-
-  // Adding subgroup routes - fixing duplicates
-  GROUP_SUBGROUPS_LIST: (id: string | number) => `/groups/${id}/subgroups`,
-  GROUP_SUBGROUP_CREATE: (id: string | number) => `/groups/${id}/subgroups/create`,
-  GROUP_SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
-    `/groups/${groupId}/subgroups/${subgroupId}`,
-
+  GROUP_INVITE: (id: string | number) => `/groups/${id}/invite`,
   TASKS: "/tasks",
   TASK_CREATE: "/tasks/create",
   TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_EDIT: (id: string | number) => `/tasks/${id}/edit`,
-
-  // Eski rotalar
-  KISI_EKLE: "/kisi/ekle",
-  KISI_DETAY: (id: string | number) => `/kisi/${id}`,
-  KISI_DUZENLE: (id: string | number) => `/kisi/${id}/duzenle`,
-  GROUP_SUBGROUPS: (id: string | number) => `/groups/${id}/subgroups`,
+  KISILER: "/kisiler",
+  KISI_EKLE: "/kisiler/ekle",
+  KISI_DETAY: (id: string | number) => `/kisiler/${id}`,
+  // Add route for subgroup detail
   SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
     `/groups/${groupId}/subgroups/${subgroupId}`,
 };

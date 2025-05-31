@@ -520,6 +520,31 @@ export async function getTasksByGroupId(groupId: number | string): Promise<Task[
   return tasks;
 }
 
+// Add function to get tasks by subgroup ID
+export async function getTasksBySubgroupId(subgroupId: number | string): Promise<Task[]> {
+  const db = await getDB();
+
+  // Get all tasks for this subgroup
+  const tasks = await db.all(
+    `
+    SELECT t.*, g.name as group_name, sg.name as subgroup_name
+    FROM tasks t
+    JOIN groups g ON t.group_id = g.id
+    JOIN subgroups sg ON t.subgroup_id = sg.id
+    WHERE t.subgroup_id = ?
+    ORDER BY t.due_date ASC, t.priority DESC
+  `,
+    [subgroupId]
+  );
+
+  // For each task, get the assignees
+  for (const task of tasks) {
+    task.assignees = await getTaskAssignees(task.id);
+  }
+
+  return tasks;
+}
+
 // Görev (task) işlemleri
 export async function getTasks(): Promise<Task[]> {
   const db = await getDB();
@@ -934,6 +959,11 @@ interface TaskAssignee {
   user_id: number;
   assigned_by: number;
   assigned_at: string;
+  username?: string;
+  email?: string;
+  full_name?: string | null;
+  assigner_username?: string;
+  assigner_full_name?: string | null;
 }
 
 // Task görevi ataması için bildirim oluşturma
@@ -1034,4 +1064,69 @@ export async function deleteTaskComment(commentId: number | string, userId: numb
   const result = await db.run(`DELETE FROM task_comments WHERE id = ?`, [commentId]);
 
   return result.changes > 0;
+}
+
+// Add type for the groupTasks result
+interface GroupTask {
+  id: number;
+}
+
+// Enhanced group member removal with task assignment cleanup
+export async function removeGroupMemberAndCleanup(
+  groupId: number | string,
+  userId: number | string,
+  removedBy?: number | string
+): Promise<boolean> {
+  const db = await getDB();
+
+  try {
+    // Start a transaction
+    await db.run("BEGIN TRANSACTION");
+
+    // 1. Get all tasks from this group
+    // Fix: Remove the type parameter from db.all since it's not supported
+    const groupTasks = await db.all(`SELECT id FROM tasks WHERE group_id = ?`, [groupId]);
+
+    // 2. Remove all task assignments for this user in these tasks
+    if (groupTasks.length > 0) {
+      const taskIds = groupTasks.map((task: GroupTask) => task.id);
+      const placeholders = taskIds.map(() => "?").join(",");
+
+      await db.run(
+        `DELETE FROM task_assignments 
+         WHERE user_id = ? AND task_id IN (${placeholders})`,
+        [userId, ...taskIds]
+      );
+    }
+
+    // 3. Remove the user from the group
+    const result = await db.run("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", [groupId, userId]);
+
+    // 4. Create a notification if the user was removed by an admin
+    if (removedBy && removedBy !== userId) {
+      const group = await getGroupById(groupId);
+      const admin = await getUserById(removedBy);
+      const user = await getUserById(userId);
+
+      if (group && admin && user) {
+        await createNotification({
+          user_id: userId,
+          type: "group_removed",
+          title: "Gruptan Çıkarıldınız",
+          message: `${admin.full_name || admin.username} sizi "${group.name}" grubundan çıkardı.`,
+          related_id: Number(groupId),
+        });
+      }
+    }
+
+    // Commit the transaction
+    await db.run("COMMIT");
+
+    return result.changes > 0;
+  } catch (error) {
+    // Rollback in case of error
+    await db.run("ROLLBACK");
+    console.error("Error removing group member:", error);
+    return false;
+  }
 }
