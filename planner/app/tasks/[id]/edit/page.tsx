@@ -24,23 +24,28 @@ export default function EditTask() {
   const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [groupName, setGroupName] = useState<string>("");
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-    reset,
     setValue,
+    reset,
+    watch,
   } = useForm<TaskForm>({
     resolver: zodResolver(taskSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      status: "pending",
-      priority: "medium",
-      due_date: "",
-      group_id: undefined,
-      subgroup_id: undefined,
+    defaultValues: async () => {
+      // Initialize with empty values first
+      return {
+        title: "",
+        description: "",
+        status: "pending",
+        priority: "medium",
+        due_date: "",
+        subgroup_id: null,
+        // Don't include group_id here as it's not editable
+      };
     },
   });
 
@@ -81,9 +86,12 @@ export default function EditTask() {
           status: taskData.status,
           priority: taskData.priority,
           due_date: taskData.due_date ? new Date(taskData.due_date).toISOString().split("T")[0] : "",
-          group_id: taskData.group_id,
-          subgroup_id: taskData.subgroup_id || undefined,
+          subgroup_id: taskData.subgroup_id || null,
+          group_id: taskData.group_id, // Include group_id here
         });
+
+        // Also set the related data
+        setGroupName(taskData.group_name || "");
 
         // Load group members
         loadGroupMembers(taskData.group_id);
@@ -138,14 +146,10 @@ export default function EditTask() {
     }
   };
 
+  // Make sure the task assignments are being sent correctly in the update request
   const onSubmit = async (data: TaskForm) => {
-    if (!user || !taskId) {
+    if (!user) {
       setError("Oturum açmanız gerekiyor");
-      return;
-    }
-
-    if (selectedAssignees.length === 0) {
-      setError("En az bir kişi atamalısınız");
       return;
     }
 
@@ -153,19 +157,20 @@ export default function EditTask() {
     setError(null);
 
     try {
-      const taskData = {
+      // Include assigned users in the update data
+      const updateData = {
         ...data,
-        // Empty string to null for backend
-        due_date: data.due_date || null,
-        assigned_users: selectedAssignees,
+        assigned_users: selectedAssignees, // Make sure this is included
       };
+
+      console.log("Updating task with data:", updateData); // For debugging
 
       const response = await fetch(API_ENDPOINTS.TASK_DETAIL(taskId), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(taskData),
+        body: JSON.stringify(updateData),
       });
 
       const responseData = await response.json();
@@ -174,7 +179,7 @@ export default function EditTask() {
         throw new Error(responseData.message || "Görev güncellenirken bir hata oluştu");
       }
 
-      router.push(ROUTES.TASK_DETAIL(taskId));
+      router.push(`/tasks/${taskId}`);
       router.refresh();
     } catch (error) {
       console.error("Görev güncellenirken hata:", error);

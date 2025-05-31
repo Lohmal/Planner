@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
   try {
     await initDB();
 
+    // Get the logged-in user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
@@ -68,26 +69,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
     }
 
+    // Get request body
     const body = await request.json();
-    const { name, description, creator_id } = body;
+    const { name, description } = body;
 
-    // Gerekli alanları kontrol et
+    // Validate required fields
     if (!name) {
       return NextResponse.json({ success: false, message: "Grup adı gereklidir", data: null }, { status: 400 });
     }
 
-    // Güvenlik kontrolü: creator_id, giriş yapan kullanıcı ile aynı olmalı
-    if (Number(creator_id) !== Number(user.id)) {
-      return NextResponse.json({ success: false, message: "Yetkilendirme hatası", data: null }, { status: 403 });
-    }
-
+    // Create the group
     const newGroup = await createGroup({
       name,
       description,
-      creator_id: user.id,
+      creator_id: Number(userId.value),
     });
 
-    const response: ApiResponse<Group | null> = {
+    if (!newGroup) {
+      return NextResponse.json(
+        { success: false, message: "Grup oluşturulurken bir hata oluştu", data: null },
+        { status: 500 }
+      );
+    }
+
+    const response: ApiResponse<Group> = {
       success: true,
       message: "Grup başarıyla oluşturuldu",
       data: newGroup,
@@ -96,7 +101,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error("Grup oluşturulurken hata:", error);
-
     return NextResponse.json(
       { success: false, message: "Grup oluşturulurken bir hata oluştu", data: null },
       { status: 500 }

@@ -5,6 +5,7 @@ import { ROUTES } from "@/types/constants";
 import Link from "next/link";
 import TasksList from "@/components/tasks/TasksList";
 import { Task } from "@/types";
+import { Info } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -47,16 +48,10 @@ export default async function TasksPage() {
           <h1 className="text-3xl font-bold">Görevlerim</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-1">Size atanan tüm görevleri burada görebilirsiniz</p>
         </div>
-        <Link href={ROUTES.TASK_CREATE} className="btn btn-primary flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-          Yeni Görev Oluştur
-        </Link>
+        <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 p-2 rounded-md flex items-center">
+          <Info className="h-4 w-4 mr-2" />
+          <span className="text-sm">Görevler artık gruplar içerisinde oluşturulabilir</span>
+        </div>
       </div>
 
       {tasks.length === 0 ? (
@@ -81,9 +76,6 @@ export default async function TasksPage() {
           <p className="text-gray-600 dark:text-gray-300 mb-6">
             Yeni bir görev oluşturabilir veya diğer kişiler tarafından atanan görevleri bekleyebilirsiniz.
           </p>
-          <Link href={ROUTES.TASK_CREATE} className="btn btn-primary">
-            Görev Oluştur
-          </Link>
         </div>
       ) : (
         <div className="space-y-8">

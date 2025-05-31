@@ -27,6 +27,7 @@ export default function CreateGroup() {
     },
   });
 
+  // Check if there's any code in the submission handler that's creating a task
   const onSubmit = async (data: GroupForm) => {
     if (!user) {
       setError("Oturum açmanız gerekiyor");
@@ -54,7 +55,7 @@ export default function CreateGroup() {
         throw new Error(responseData.message || "Grup oluşturulurken bir hata oluştu");
       }
 
-      router.push(ROUTES.GROUPS);
+      router.push(ROUTES.DASHBOARD);
       router.refresh();
     } catch (error) {
       console.error("Grup oluşturulurken hata:", error);

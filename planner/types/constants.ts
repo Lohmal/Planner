@@ -8,12 +8,15 @@ export const API_ENDPOINTS = {
   LOGOUT: "/api/auth/logout",
 
   USERS: "/api/users",
+  USER_PROFILE: "/api/users/profile",
+  USER_STATS: "/api/users/stats",
   USER_DETAIL: (id: string | number) => `/api/users/${id}`,
 
   GROUPS: "/api/groups",
   GROUP_DETAIL: (id: string | number) => `/api/groups/${id}`,
   GROUP_MEMBERS: (id: string | number) => `/api/groups/${id}/members`,
   GROUP_SUBGROUPS: (id: string | number) => `/api/groups/${id}/subgroups`,
+  SUBGROUP_DETAIL: (id: string | number) => `/api/subgroups/${id}`,
   GROUP_INVITATIONS: "/api/group-invitations",
   GROUP_INVITATION_RESPOND: (id: string | number) => `/api/group-invitations/${id}/respond`,
 
@@ -48,15 +51,19 @@ export const ROUTES = {
   GROUP_MEMBERS: (id: string | number) => `/groups/${id}/members`,
   GROUP_INVITE: (id: string | number) => `/groups/${id}/invite`,
   TASKS: "/tasks",
-  TASK_CREATE: "/tasks/create",
   TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_EDIT: (id: string | number) => `/tasks/${id}/edit`,
   KISILER: "/kisiler",
   KISI_EKLE: "/kisiler/ekle",
   KISI_DETAY: (id: string | number) => `/kisiler/${id}`,
-  // Add route for subgroup detail
+  // Update to use consistent parameter naming
   SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
     `/groups/${groupId}/subgroups/${subgroupId}`,
+  // Make sure we have this route for creating tasks within a group
+  GROUP_TASKS_CREATE: (id: string | number) => `/groups/${id}/tasks/create`,
+  // Add a route for creating tasks within a subgroup context
+  SUBGROUP_TASKS_CREATE: (groupId: string | number, subgroupId: string | number) =>
+    `/groups/${groupId}/tasks/create?subgroupId=${subgroupId}`,
 };
 
 /**

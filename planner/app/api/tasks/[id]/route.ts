@@ -1,14 +1,16 @@
-import {
-  getTaskById,
-  updateTask,
-  deleteTask,
-  getUserById,
-  initDB,
-  isGroupMember,
-  notifyTaskAssignment,
-} from "@/lib/db";
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import {
+  initDB,
+  getTaskById,
+  getUserById,
+  updateTask,
+  isGroupAdmin,
+  isGroupMember,
+  assignTaskToUsers,
+  deleteTask,
+  getDB,
+} from "@/lib/db";
 import { ApiResponse, Task } from "@/types";
 
 // Get a specific task by ID
@@ -72,81 +74,78 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   try {
     await initDB();
 
-    // Resolve the params
-    const resolvedParams = await Promise.resolve(params);
-    const taskId = resolvedParams.id;
-
-    // Check authentication
+    // Get the user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
     if (!userId?.value) {
-      return NextResponse.json({ success: false, message: "Yetkilendirme başarısız", data: null }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Yetkilendirme başarısız" }, { status: 401 });
     }
 
     const user = await getUserById(userId.value);
 
     if (!user) {
-      return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı" }, { status: 401 });
     }
 
-    // Get the task
-    const task = await getTaskById(taskId);
+    // Get the task ID from params
+    const taskId = params.id;
 
-    if (!task) {
-      return NextResponse.json({ success: false, message: "Görev bulunamadı", data: null }, { status: 404 });
+    // Get current task to check if user has permission
+    const currentTask = await getTaskById(taskId);
+
+    if (!currentTask) {
+      return NextResponse.json({ success: false, message: "Görev bulunamadı" }, { status: 404 });
     }
 
-    // Check if the user is a member of the task's group
-    const isMember = await isGroupMember(task.group_id, userId.value);
+    // Check if user is creator or admin of the group
+    const isAdmin = await isGroupAdmin(currentTask.group_id, userId.value);
+    const isCreator = currentTask.created_by === Number(userId.value);
 
-    if (!isMember) {
-      return NextResponse.json(
-        { success: false, message: "Bu görevi düzenleme izniniz yok", data: null },
-        { status: 403 }
-      );
+    if (!isAdmin && !isCreator) {
+      return NextResponse.json({ success: false, message: "Bu görevi düzenleme yetkiniz yok" }, { status: 403 });
     }
 
     // Get request body
     const body = await request.json();
-    const { title, description, status, priority, due_date, assigned_users } = body;
 
-    // Validate required fields
-    if (!title) {
-      return NextResponse.json({ success: false, message: "Görev başlığı gereklidir", data: null }, { status: 400 });
-    }
+    // Log the received data
+    console.log("Received update data:", body);
 
     // Update the task
     const updatedTask = await updateTask(taskId, {
-      title,
-      description,
-      status,
-      priority,
-      due_date,
-      assigned_users,
+      title: body.title,
+      description: body.description,
+      status: body.status,
+      priority: body.priority,
+      due_date: body.due_date,
+      subgroup_id: body.subgroup_id,
     });
 
-    // Create notifications for newly assigned users
-    if (assigned_users && assigned_users.length > 0) {
-      for (const userId of assigned_users) {
-        await notifyTaskAssignment(taskId, userId, user.id);
+    // Handle assigned users separately
+    if (body.assigned_users && Array.isArray(body.assigned_users)) {
+      console.log("Updating task assignments for users:", body.assigned_users);
+
+      // Get database connection
+      const db = await getDB();
+
+      // First remove all existing assignments
+      await db.run("DELETE FROM task_assignments WHERE task_id = ?", [taskId]);
+
+      // Then add the new assignments
+      if (body.assigned_users.length > 0) {
+        await assignTaskToUsers(taskId, body.assigned_users, Number(userId.value));
       }
     }
 
-    const response: ApiResponse<Task | null> = {
+    return NextResponse.json({
       success: true,
       message: "Görev başarıyla güncellendi",
       data: updatedTask,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     console.error("Görev güncellenirken hata:", error);
-
-    return NextResponse.json(
-      { success: false, message: "Görev güncellenirken bir hata oluştu", data: null },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Görev güncellenirken bir hata oluştu" }, { status: 500 });
   }
 }
 

@@ -70,21 +70,6 @@ export default async function Dashboard() {
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">Görevlerim</h2>
-            <Link
-              href={ROUTES.TASK_CREATE}
-              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 flex items-center"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-4 w-4 mr-1"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Yeni Görev
-            </Link>
           </div>
           <DashboardTasks tasks={tasks} />
         </div>

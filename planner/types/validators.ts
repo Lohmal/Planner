@@ -43,13 +43,20 @@ export type GroupForm = z.infer<typeof groupSchema>;
  * Görev formu doğrulama şeması
  */
 export const taskSchema = z.object({
-  title: z.string().min(3, VALIDATION_MESSAGES.TASK_TITLE_MIN),
+  title: z.string().min(1, "Görev başlığı zorunludur"),
   description: z.string().optional(),
   status: z.string(),
   priority: z.string(),
-  due_date: z.string().optional().nullable(),
-  group_id: z.number(),
-  subgroup_id: z.number().optional().nullable(),
+  due_date: z.string().nullable().optional(),
+  subgroup_id: z
+    .union([z.string(), z.number()])
+    .nullable()
+    .optional()
+    .transform((val) => {
+      if (val === "" || val === null || val === undefined) return null;
+      return typeof val === "string" ? parseInt(val, 10) : val;
+    }),
+  group_id: z.number().optional(),
 });
 
 export type TaskForm = z.infer<typeof taskSchema>;
@@ -58,9 +65,8 @@ export type TaskForm = z.infer<typeof taskSchema>;
  * Alt grup formu doğrulama şeması
  */
 export const subgroupSchema = z.object({
-  name: z.string().min(3, "Alt grup adı en az 3 karakter olmalıdır"),
+  name: z.string().min(1, "Alt grup adı zorunludur"),
   description: z.string().optional(),
-  group_id: z.number(),
 });
 
 export type SubgroupForm = z.infer<typeof subgroupSchema>;

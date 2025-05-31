@@ -33,7 +33,7 @@ export default function RootLayout({
             <main className="container mx-auto py-8 px-4 flex-grow">{children}</main>
             <footer className="bg-white dark:bg-gray-800 py-6 border-t border-gray-200 dark:border-gray-700">
               <div className="container mx-auto px-4 text-center text-gray-600 dark:text-gray-300">
-                <p>&copy; {new Date().getFullYear()} Planlayıcı Uygulaması - Tüm hakları saklıdır</p>
+                <p>&copy; {new Date().getFullYear()} Planner - Tüm hakları saklıdır</p>
               </div>
             </footer>
           </div>

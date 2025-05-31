@@ -1,6 +1,6 @@
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { Kisi, User, Group, Task, GroupMember } from "@/types";
+import { User, Group, Task, GroupMember } from "@/types"; // Removed Kisi import
 import bcrypt from "bcryptjs";
 
 // Veritabanı bağlantısı için tek bir örnek (singleton) oluşturalım
@@ -107,20 +107,6 @@ export async function getDB() {
     )
   `);
 
-  // Eski kisiler tablosu da kalsın (uyumluluk için)
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS kisiler (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ad TEXT NOT NULL,
-      soyad TEXT NOT NULL,
-      email TEXT UNIQUE,
-      telefon TEXT,
-      adres TEXT,
-      notlar TEXT,
-      olusturma_tarihi TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
   // Check if subgroup_id column exists in tasks table and add it if it doesn't
   const tableInfo = await db.all("PRAGMA table_info(tasks)");
   const hasSubgroupId = tableInfo.some((column: { name: string }) => column.name === "subgroup_id");
@@ -148,7 +134,7 @@ export async function getDB() {
     )
   `);
 
-  // Grup davetleri tablosu
+  // Grup davetleri tablosı
   await db.exec(`
     CREATE TABLE IF NOT EXISTS group_invitations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -281,22 +267,35 @@ export async function createGroup(group: {
 }): Promise<Group | null> {
   const db = await getDB();
 
-  const result = await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
-    group.name,
-    group.description || null,
-    group.creator_id,
-  ]);
+  try {
+    // Start a transaction to ensure atomicity
+    await db.exec("BEGIN TRANSACTION");
 
-  // Oluşturan kişiyi admin olarak gruba ekleyelim
-  if (result.lastID) {
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      result.lastID,
+    const result = await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
+      group.name,
+      group.description || null,
       group.creator_id,
-      "admin",
     ]);
-  }
 
-  return getGroupById(result.lastID);
+    // Oluşturan kişiyi admin olarak gruba ekleyelim
+    if (result.lastID) {
+      await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
+        result.lastID,
+        group.creator_id,
+        "admin",
+      ]);
+    }
+
+    // Commit the transaction
+    await db.exec("COMMIT");
+
+    return getGroupById(result.lastID);
+  } catch (error) {
+    // Rollback in case of error
+    await db.exec("ROLLBACK");
+    console.error("Grup oluşturulurken hata:", error);
+    return null;
+  }
 }
 
 export async function updateGroup(
@@ -408,15 +407,23 @@ export async function createSubgroup(subgroup: {
 }): Promise<any | null> {
   const db = await getDB();
 
-  const result = await db.run(
-    `
-    INSERT INTO subgroups (name, description, group_id, creator_id)
-    VALUES (?, ?, ?, ?)
-  `,
-    [subgroup.name, subgroup.description || null, subgroup.group_id, subgroup.creator_id]
-  );
+  try {
+    const result = await db.run(
+      `
+      INSERT INTO subgroups (name, description, group_id, creator_id)
+      VALUES (?, ?, ?, ?)
+      `,
+      [subgroup.name, subgroup.description || null, subgroup.group_id, subgroup.creator_id]
+    );
 
-  return getSubgroupById(result.lastID);
+    if (result.lastID) {
+      return getSubgroupById(result.lastID);
+    }
+    return null;
+  } catch (error) {
+    console.error("Alt grup oluşturulurken hata:", error);
+    return null;
+  }
 }
 
 export async function updateSubgroup(
@@ -425,21 +432,57 @@ export async function updateSubgroup(
 ): Promise<any | null> {
   const db = await getDB();
 
-  await db.run(
-    `
-    UPDATE subgroups SET name = ?, description = ?
-    WHERE id = ?
-  `,
-    [subgroup.name, subgroup.description || null, id]
-  );
+  try {
+    await db.run(
+      `
+      UPDATE subgroups SET name = ?, description = ?
+      WHERE id = ?
+    `,
+      [subgroup.name, subgroup.description || null, id]
+    );
 
-  return getSubgroupById(id);
+    return getSubgroupById(id);
+  } catch (error) {
+    console.error("Alt grup güncellenirken hata:", error);
+    return null;
+  }
 }
 
 export async function deleteSubgroup(id: number | string): Promise<boolean> {
   const db = await getDB();
-  const result = await db.run("DELETE FROM subgroups WHERE id = ?", [id]);
-  return result.changes > 0;
+
+  try {
+    // Start a transaction
+    await db.exec("BEGIN TRANSACTION");
+
+    // Update tasks to remove subgroup_id reference
+    await db.run(
+      `
+      UPDATE tasks SET subgroup_id = NULL
+      WHERE subgroup_id = ?
+    `,
+      [id]
+    );
+
+    // Delete the subgroup
+    const result = await db.run(
+      `
+      DELETE FROM subgroups
+      WHERE id = ?
+    `,
+      [id]
+    );
+
+    // Commit the transaction
+    await db.exec("COMMIT");
+
+    return result.changes > 0;
+  } catch (error) {
+    // Rollback in case of error
+    await db.exec("ROLLBACK");
+    console.error("Alt grup silinirken hata:", error);
+    return false;
+  }
 }
 
 // Çoklu görev atama işlemleri
@@ -573,25 +616,38 @@ export async function getTasksByUserId(userId: number | string): Promise<Task[]>
 
 export async function getTaskById(id: number | string): Promise<any | null> {
   const db = await getDB();
-  const task = await db.get(
-    `
-    SELECT t.*, c.username as creator_username, c.full_name as creator_full_name,
-           g.name as group_name, sg.name as subgroup_name
-    FROM tasks t
-    JOIN users c ON t.created_by = c.id
-    JOIN groups g ON t.group_id = g.id
-    LEFT JOIN subgroups sg ON t.subgroup_id = sg.id
-    WHERE t.id = ?
-  `,
-    [id]
-  );
 
-  if (!task) return null;
+  try {
+    // Log the task ID being requested
+    console.log("Fetching task with ID:", id);
 
-  // Görevin atandığı kullanıcıları al
-  task.assignees = await getTaskAssignees(id);
+    const task = await db.get(
+      `
+      SELECT t.*, c.username as creator_username, c.full_name as creator_full_name,
+             g.name as group_name, sg.name as subgroup_name
+      FROM tasks t
+      JOIN users c ON t.created_by = c.id
+      JOIN groups g ON t.group_id = g.id
+      LEFT JOIN subgroups sg ON t.subgroup_id = sg.id
+      WHERE t.id = ?
+      `,
+      [id]
+    );
 
-  return task;
+    if (!task) {
+      console.log("No task found with ID:", id);
+      return null;
+    }
+
+    // Görevin atandığı kullanıcıları al
+    const assignees = await getTaskAssignees(id);
+    task.assignees = assignees;
+
+    return task;
+  } catch (error) {
+    console.error(`Error fetching task with ID ${id}:`, error);
+    return null;
+  }
 }
 
 export async function createTask(task: {
@@ -644,7 +700,7 @@ export async function updateTask(
     status?: string;
     priority?: string;
     due_date?: string;
-    assigned_users?: number[];
+    subgroup_id?: number | null;
   }
 ): Promise<Task | null> {
   const db = await getDB();
@@ -658,33 +714,31 @@ export async function updateTask(
     status: task.status ?? currentTask.status,
     priority: task.priority ?? currentTask.priority,
     due_date: task.due_date ?? currentTask.due_date,
+    subgroup_id: task.subgroup_id !== undefined ? task.subgroup_id : currentTask.subgroup_id,
   };
+
+  // Log the update operation
+  console.log(`Updating task ${id} with:`, updatedTask);
 
   await db.run(
     `
     UPDATE tasks SET
       title = ?, description = ?, status = ?, priority = ?,
-      due_date = ?, updated_at = CURRENT_TIMESTAMP
+      due_date = ?, subgroup_id = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
-    [updatedTask.title, updatedTask.description, updatedTask.status, updatedTask.priority, updatedTask.due_date, id]
+    [
+      updatedTask.title,
+      updatedTask.description,
+      updatedTask.status,
+      updatedTask.priority,
+      updatedTask.due_date,
+      updatedTask.subgroup_id,
+      id,
+    ]
   );
 
-  // Update task assignments if provided
-  if (task.assigned_users && task.assigned_users.length > 0) {
-    // First remove all existing assignments
-    await db.run(`DELETE FROM task_assignments WHERE task_id = ?`, [id]);
-
-    // Then add the new assignments
-    for (const userId of task.assigned_users) {
-      await db.run(
-        `
-        INSERT INTO task_assignments (task_id, user_id, assigned_by)
-        VALUES (?, ?, ?)
-      `,
-        [id, userId, currentTask.created_by]
-      );
-    }
-  }
+  // Note: We're handling task assignments separately in the API route
+  // to ensure better control over the process
 
   return getTaskById(id);
 }
@@ -693,62 +747,6 @@ export async function deleteTask(id: number | string): Promise<boolean> {
   const db = await getDB();
   const result = await db.run("DELETE FROM tasks WHERE id = ?", [id]);
   return result.changes > 0;
-}
-
-// Eski kisiler ile ilgili işlemler
-export async function getKisiler(): Promise<Kisi[]> {
-  const db = await getDB();
-  return db.all("SELECT * FROM kisiler ORDER BY olusturma_tarihi DESC");
-}
-
-export async function getKisiById(id: number | string): Promise<Kisi | null> {
-  const db = await getDB();
-  return db.get("SELECT * FROM kisiler WHERE id = ?", [id]);
-}
-
-export async function createKisi(kisi: Kisi): Promise<Kisi | null> {
-  const db = await getDB();
-  const result = await db.run(
-    "INSERT INTO kisiler (ad, soyad, email, telefon, adres, notlar) VALUES (?, ?, ?, ?, ?, ?)",
-    [kisi.ad, kisi.soyad, kisi.email, kisi.telefon, kisi.adres, kisi.notlar]
-  );
-
-  return getKisiById(result.lastID);
-}
-
-export async function updateKisi(id: number | string, kisi: Kisi): Promise<Kisi | null> {
-  const db = await getDB();
-  await db.run("UPDATE kisiler SET ad = ?, soyad = ?, email = ?, telefon = ?, adres = ?, notlar = ? WHERE id = ?", [
-    kisi.ad,
-    kisi.soyad,
-    kisi.email,
-    kisi.telefon,
-    kisi.adres,
-    kisi.notlar,
-    id,
-  ]);
-
-  return getKisiById(id);
-}
-
-export async function deleteKisi(id: number | string): Promise<boolean> {
-  const db = await getDB();
-  const result = await db.run("DELETE FROM kisiler WHERE id = ?", [id]);
-  return result.changes > 0;
-}
-
-export async function isEmailUnique(email: string, excludeId?: number | string): Promise<boolean> {
-  const db = await getDB();
-  let query = "SELECT COUNT(*) as count FROM kisiler WHERE email = ?";
-  const params: any[] = [email];
-
-  if (excludeId) {
-    query += " AND id != ?";
-    params.push(excludeId);
-  }
-
-  const result = await db.get(query, params);
-  return result.count === 0;
 }
 
 // Bildirim işlemleri
@@ -819,6 +817,20 @@ export async function createNotification(notification: {
     [notification.user_id, notification.type, notification.title, notification.message, notification.related_id || null]
   );
   return result.lastID;
+}
+
+export async function deleteNotification(notificationId: number | string, userId: number | string): Promise<boolean> {
+  const db = await getDB();
+
+  try {
+    // Only allow users to delete their own notifications
+    const result = await db.run("DELETE FROM notifications WHERE id = ? AND user_id = ?", [notificationId, userId]);
+
+    return result.changes > 0;
+  } catch (error) {
+    console.error("Bildirim silinirken hata (DB):", error);
+    return false;
+  }
 }
 
 // Grup davetleri işlemleri
@@ -1080,52 +1092,48 @@ export async function removeGroupMemberAndCleanup(
   const db = await getDB();
 
   try {
-    // Start a transaction
-    await db.run("BEGIN TRANSACTION");
+    // Start a transaction to ensure all operations are atomic
+    await db.exec("BEGIN TRANSACTION");
 
-    // 1. Get all tasks from this group
-    // Fix: Remove the type parameter from db.all since it's not supported
-    const groupTasks = await db.all(`SELECT id FROM tasks WHERE group_id = ?`, [groupId]);
+    // Remove the user from the group
+    const result = await db.run("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", [groupId, userId]);
 
-    // 2. Remove all task assignments for this user in these tasks
-    if (groupTasks.length > 0) {
-      const taskIds = groupTasks.map((task: GroupTask) => task.id);
-      const placeholders = taskIds.map(() => "?").join(",");
+    // Remove user from all task assignments in this group
+    await db.run(
+      `
+      DELETE FROM task_assignments 
+      WHERE task_id IN (SELECT id FROM tasks WHERE group_id = ?) 
+      AND user_id = ?
+    `,
+      [groupId, userId]
+    );
 
+    // Optionally create a notification about the removal if removedBy is provided
+    if (removedBy) {
       await db.run(
-        `DELETE FROM task_assignments 
-         WHERE user_id = ? AND task_id IN (${placeholders})`,
-        [userId, ...taskIds]
+        `
+        INSERT INTO notifications (
+          user_id, type, title, message, related_id, is_read
+        ) VALUES (?, ?, ?, ?, ?, ?)
+      `,
+        [
+          userId,
+          "group_removal",
+          "Gruptan Çıkarıldınız",
+          `Bir grup yöneticisi tarafından gruptan çıkarıldınız.`,
+          groupId,
+          0,
+        ]
       );
     }
 
-    // 3. Remove the user from the group
-    const result = await db.run("DELETE FROM group_members WHERE group_id = ? AND user_id = ?", [groupId, userId]);
-
-    // 4. Create a notification if the user was removed by an admin
-    if (removedBy && removedBy !== userId) {
-      const group = await getGroupById(groupId);
-      const admin = await getUserById(removedBy);
-      const user = await getUserById(userId);
-
-      if (group && admin && user) {
-        await createNotification({
-          user_id: userId,
-          type: "group_removed",
-          title: "Gruptan Çıkarıldınız",
-          message: `${admin.full_name || admin.username} sizi "${group.name}" grubundan çıkardı.`,
-          related_id: Number(groupId),
-        });
-      }
-    }
-
     // Commit the transaction
-    await db.run("COMMIT");
+    await db.exec("COMMIT");
 
     return result.changes > 0;
   } catch (error) {
-    // Rollback in case of error
-    await db.run("ROLLBACK");
+    // If there's an error, roll back the transaction
+    await db.exec("ROLLBACK");
     console.error("Error removing group member:", error);
     return false;
   }

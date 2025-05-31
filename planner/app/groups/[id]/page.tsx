@@ -7,7 +7,7 @@ import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
 import GroupMembers from "@/components/groups/GroupMembers";
 import GroupTasks from "@/components/groups/GroupTasks";
-import { Folders } from "lucide-react";
+import { Folders, PlusCircle } from "lucide-react";
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -187,10 +187,15 @@ export default function GroupDetailPage() {
       {/* Subgroups Section */}
       {subgroups.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 flex items-center">
-            <Folders className="h-5 w-5 mr-2" />
-            Alt Gruplar
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold mb-4 flex items-center">
+              <Folders className="h-5 w-5 mr-2" />
+              Alt Gruplar
+            </h2>
+            <Link href={`/groups/${groupId}/subgroups`} className="btn btn-sm btn-outline flex items-center">
+              Tüm Alt Grupları Gör
+            </Link>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {subgroups.map((subgroup: any) => (
               <Link
@@ -207,6 +212,25 @@ export default function GroupDetailPage() {
                 </div>
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add a button for when there are no subgroups */}
+      {subgroups.length === 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6 text-center">
+          <h2 className="text-xl font-semibold mb-4 flex items-center justify-center">
+            <Folders className="h-5 w-5 mr-2" />
+            Alt Gruplar
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-4">Bu grupta henüz alt grup bulunmuyor.</p>
+          <div className="flex justify-center space-x-4">
+            <Link href={`/groups/${groupId}/subgroups/create`} className="btn btn-primary">
+              Alt Grup Oluştur
+            </Link>
+            <Link href={`/groups/${groupId}/subgroups`} className="btn btn-outline">
+              Alt Grupları Yönet
+            </Link>
           </div>
         </div>
       )}
@@ -241,15 +265,13 @@ export default function GroupDetailPage() {
         )}
       </div>
 
-      {/* Tasks Preview */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
+      {/* Tasks Section */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold flex items-center">
-            {/* ListTodo icon */}
-            Görevler
-          </h2>
-          <Link href={`/groups/${groupId}/tasks`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
-            Tümünü Gör
+          <h2 className="text-xl font-semibold">Görevler</h2>
+          <Link href={`/groups/${groupId}/tasks/create`} className="btn btn-sm btn-primary flex items-center">
+            <PlusCircle className="h-4 w-4 mr-2" />
+            Yeni Görev
           </Link>
         </div>
 

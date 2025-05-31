@@ -23,9 +23,9 @@ export default function TaskDetailPage() {
   const params = useParams();
   const taskId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
   const { user } = useAuth();
-  const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [task, setTask] = useState<Task | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);

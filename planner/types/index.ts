@@ -1,18 +1,4 @@
 /**
- * Kişi modeli (eski)
- */
-export type Kisi = {
-  id?: number;
-  ad: string;
-  soyad: string;
-  email: string;
-  telefon?: string;
-  adres?: string;
-  notlar?: string;
-  olusturma_tarihi?: string;
-};
-
-/**
  * Kullanıcı modeli
  */
 export type User = {

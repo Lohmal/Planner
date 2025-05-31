@@ -1,8 +1,9 @@
-import { getSubgroups, createSubgroup, getUserById, getGroupById, initDB, isGroupMember } from "@/lib/db";
+import { getSubgroups, createSubgroup, getUserById, isGroupMember, initDB } from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiResponse } from "@/types";
 
+// GET implementation for fetching subgroups
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await initDB();
@@ -51,15 +52,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
+// POST implementation for creating a subgroup
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await initDB();
 
-    // Resolve the params
-    const resolvedParams = await Promise.resolve(params);
-    const groupId = resolvedParams.id;
-
-    // Check authentication
+    // Get the logged-in user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
@@ -73,6 +71,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
     }
 
+    // Resolve params
+    const resolvedParams = await Promise.resolve(params);
+    const groupId = resolvedParams.id;
+
     // Check if the user is a member of the group
     const isMember = await isGroupMember(groupId, userId.value);
 
@@ -82,16 +84,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // Get request body
     const body = await request.json();
-    const { name, description, creator_id } = body;
+    const { name, description } = body;
 
     // Validate required fields
     if (!name) {
       return NextResponse.json({ success: false, message: "Alt grup adı gereklidir", data: null }, { status: 400 });
-    }
-
-    // Check if creator_id matches the authenticated user
-    if (Number(creator_id) !== Number(user.id)) {
-      return NextResponse.json({ success: false, message: "Yetkilendirme hatası", data: null }, { status: 403 });
     }
 
     // Create the subgroup
@@ -99,8 +96,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       name,
       description,
       group_id: Number(groupId),
-      creator_id: user.id,
+      creator_id: Number(userId.value),
     });
+
+    if (!newSubgroup) {
+      return NextResponse.json(
+        { success: false, message: "Alt grup oluşturulurken bir hata oluştu", data: null },
+        { status: 500 }
+      );
+    }
 
     const response: ApiResponse<any> = {
       success: true,
@@ -111,7 +115,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json(response, { status: 201 });
   } catch (error) {
     console.error("Alt grup oluşturulurken hata:", error);
-
     return NextResponse.json(
       { success: false, message: "Alt grup oluşturulurken bir hata oluştu", data: null },
       { status: 500 }

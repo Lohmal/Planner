@@ -11,6 +11,7 @@ type AuthContextType = {
   login: (email: string, password: string) => Promise<boolean>;
   register: (data: { username: string; email: string; password: string; fullName?: string }) => Promise<boolean>;
   logout: () => void;
+  refreshUser: () => Promise<void>; // Add this method
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -127,7 +128,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>;
+  // Add the refreshUser implementation
+  const refreshUser = async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch("/api/users/profile");
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setUser(data.data);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing user data:", error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

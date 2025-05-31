@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/authContext";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "@/types/constants";
-import { Bell, Check, LogOut } from "lucide-react";
+import { Bell, Check, LogOut, Trash2, X } from "lucide-react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
@@ -14,6 +14,7 @@ export default function Navbar() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [invitations, setInvitations] = useState<any[]>([]);
+  const [isDeletingNotification, setIsDeletingNotification] = useState<number | null>(null);
   const pathname = usePathname();
   const notificationRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -177,6 +178,39 @@ export default function Navbar() {
     ));
   };
 
+  // Bildirim silme fonksiyonu
+  const deleteNotification = async (notificationId: number) => {
+    try {
+      // Prevent the click from propagating to parent elements
+      setIsDeletingNotification(notificationId);
+      
+      const response = await fetch(`/api/notifications/${notificationId}`, {
+        method: "DELETE",
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Remove the notification from the list
+        setNotifications(notifications.filter(notification => notification.id !== notificationId));
+        
+        // Update unread count if it was an unread notification
+        const deletedNotification = notifications.find(n => n.id === notificationId);
+        if (deletedNotification && deletedNotification.is_read === 0) {
+          setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+      } else {
+        // Show error in console with the actual error message from server
+        throw new Error(data.message || "Bildirim silinirken bir hata oluştu");
+      }
+    } catch (error) {
+      console.error("Bildirim silinirken hata:", error);
+      // You might want to show a user-friendly error message here
+    } finally {
+      setIsDeletingNotification(null);
+    }
+  };
+
   return (
     <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
       <div className="container mx-auto px-4">
@@ -283,7 +317,7 @@ export default function Navbar() {
                               key={notification.id}
                               className={`p-3 border-b border-gray-100 dark:border-gray-700 ${
                                 !isRead ? "bg-blue-50 dark:bg-blue-900/10" : ""
-                              } hover:bg-gray-50 dark:hover:bg-gray-700`}
+                              } hover:bg-gray-50 dark:hover:bg-gray-700 relative`}
                             >
                               {target === "#" ? (
                                 <div>
@@ -316,6 +350,26 @@ export default function Navbar() {
                                   </p>
                                 </Link>
                               )}
+
+                              {/* Bildirimi silmek için buton */}
+                              <button
+                                className="absolute top-2 right-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 p-1 rounded-full"
+                                onClick={(e) => {
+                                  e.preventDefault(); // Prevent link navigation
+                                  e.stopPropagation(); // Prevent event bubbling
+                                  if (notification.id) {
+                                    deleteNotification(notification.id);
+                                  }
+                                }}
+                                title="Bildirimi sil"
+                                disabled={isDeletingNotification === notification.id}
+                              >
+                                {isDeletingNotification === notification.id ? (
+                                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-solid border-current border-e-transparent"></span>
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
                             </div>
                           );
                         })

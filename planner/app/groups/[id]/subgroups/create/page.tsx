@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { subgroupSchema, SubgroupForm } from "@/types/validators"; // Ensure this is defined
+import { subgroupSchema, SubgroupForm } from "@/types/validators";
 import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import { useAuth } from "@/lib/authContext";
 import Link from "next/link";
@@ -12,7 +12,6 @@ import Link from "next/link";
 export default function CreateSubgroup() {
   const router = useRouter();
   const params = useParams();
-  // Use type assertion to get the id as string
   const groupId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
 
   const { user } = useAuth();
@@ -73,6 +72,7 @@ export default function CreateSubgroup() {
       const subgroupData = {
         ...data,
         group_id: Number(groupId),
+        creator_id: user.id,
       };
 
       // Use the correct API endpoint for creating subgroups
@@ -90,6 +90,7 @@ export default function CreateSubgroup() {
         throw new Error(responseData.message || "Alt grup oluşturulurken bir hata oluştu");
       }
 
+      // Change the redirect to go to the group detail page instead of subgroups page
       router.push(ROUTES.GROUP_DETAIL(groupId));
       router.refresh();
     } catch (error) {
