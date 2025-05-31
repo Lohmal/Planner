@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { taskSchema, TaskForm } from "@/types/validators";
@@ -10,17 +10,20 @@ import { useAuth } from "@/lib/authContext";
 import Link from "next/link";
 import { Task, User } from "@/types";
 
-export default function EditTask({ params }: { params: { id: string } }) {
+export default function EditTask() {
   const router = useRouter();
+  const params = useParams();
+  // Add a default value and type assertion to ensure taskId is a string
+  const taskId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [task, setTask] = useState<Task | null>(null);
   const [members, setMembers] = useState<User[]>([]);
+  const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
-  const [taskId, setTaskId] = useState<string>("");
 
   const {
     register,
@@ -37,16 +40,9 @@ export default function EditTask({ params }: { params: { id: string } }) {
       priority: "medium",
       due_date: "",
       group_id: undefined,
-      assigned_to: undefined,
+      subgroup_id: undefined,
     },
   });
-
-  // Get task ID from params
-  useEffect(() => {
-    if (params.id) {
-      setTaskId(params.id);
-    }
-  }, [params.id]);
 
   // Load task data
   useEffect(() => {
@@ -72,6 +68,12 @@ export default function EditTask({ params }: { params: { id: string } }) {
         const taskData = data.data;
         setTask(taskData);
 
+        // Set initial assignees
+        if (taskData.assignees && taskData.assignees.length > 0) {
+          const assigneeIds = taskData.assignees.map((a: any) => a.user_id);
+          setSelectedAssignees(assigneeIds);
+        }
+
         // Set form values
         reset({
           title: taskData.title,
@@ -80,7 +82,7 @@ export default function EditTask({ params }: { params: { id: string } }) {
           priority: taskData.priority,
           due_date: taskData.due_date ? new Date(taskData.due_date).toISOString().split("T")[0] : "",
           group_id: taskData.group_id,
-          assigned_to: taskData.assigned_to || undefined,
+          subgroup_id: taskData.subgroup_id || undefined,
         });
 
         // Load group members
@@ -128,9 +130,22 @@ export default function EditTask({ params }: { params: { id: string } }) {
     }
   }
 
+  const toggleAssignee = (userId: number) => {
+    if (selectedAssignees.includes(userId)) {
+      setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
+    } else {
+      setSelectedAssignees([...selectedAssignees, userId]);
+    }
+  };
+
   const onSubmit = async (data: TaskForm) => {
     if (!user || !taskId) {
       setError("Oturum açmanız gerekiyor");
+      return;
+    }
+
+    if (selectedAssignees.length === 0) {
+      setError("En az bir kişi atamalısınız");
       return;
     }
 
@@ -142,7 +157,7 @@ export default function EditTask({ params }: { params: { id: string } }) {
         ...data,
         // Empty string to null for backend
         due_date: data.due_date || null,
-        assigned_to: data.assigned_to || null,
+        assigned_users: selectedAssignees,
       };
 
       const response = await fetch(API_ENDPOINTS.TASK_DETAIL(taskId), {
@@ -249,7 +264,7 @@ export default function EditTask({ params }: { params: { id: string } }) {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Görevi Düzenle</h1>
         <div className="flex gap-2">
-          <Link href={ROUTES.TASK_DETAIL(taskId)} className="text-blue-600 hover:underline">
+          <Link href={taskId ? ROUTES.TASK_DETAIL(taskId) : ROUTES.TASKS} className="text-blue-600 hover:underline">
             Vazgeç
           </Link>
           <button onClick={handleDelete} className="text-red-600 hover:underline" disabled={isDeleting}>
@@ -265,7 +280,7 @@ export default function EditTask({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit as any)} className="space-y-6">
           <div>
             <label htmlFor="title" className="block text-sm font-medium mb-2">
               Görev Başlığı *
@@ -295,22 +310,45 @@ export default function EditTask({ params }: { params: { id: string } }) {
           </div>
 
           <div>
-            <label htmlFor="assigned_to" className="block text-sm font-medium mb-2">
-              Atanacak Kişi
-            </label>
-            <select
-              id="assigned_to"
-              {...register("assigned_to", { valueAsNumber: true })}
-              className="input w-full"
-              disabled={isSubmitting || isLoadingMembers}
-            >
-              <option value="">Kişi Seçin (opsiyonel)</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.full_name || member.username}
-                </option>
-              ))}
-            </select>
+            <label className="block text-sm font-medium mb-2">Atanacak Kişiler *</label>
+            {isLoadingMembers ? (
+              <div className="py-4 text-center">
+                <p className="text-gray-500 dark:text-gray-400">Üyeler yükleniyor...</p>
+              </div>
+            ) : members.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-gray-500 dark:text-gray-400">Bu grupta üye bulunmamaktadır.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                {members.map((member) => (
+                  <div
+                    key={member.id}
+                    className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                      selectedAssignees.includes(member.id)
+                        ? "bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700"
+                        : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    }`}
+                    onClick={() => toggleAssignee(member.id)}
+                  >
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedAssignees.includes(member.id)}
+                        onChange={() => toggleAssignee(member.id)}
+                        className="h-4 w-4 text-blue-600 rounded"
+                      />
+                      <div className="ml-3">
+                        <p className="font-medium">{member.full_name || member.username}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedAssignees.length > 0 && (
+              <p className="mt-2 text-sm text-blue-600">{selectedAssignees.length} kişi seçildi</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -357,9 +395,12 @@ export default function EditTask({ params }: { params: { id: string } }) {
           {/* Hidden group_id field */}
           <input type="hidden" {...register("group_id", { valueAsNumber: true })} />
 
+          {/* Hidden subgroup_id field if it exists */}
+          {task?.subgroup_id && <input type="hidden" {...register("subgroup_id", { valueAsNumber: true })} />}
+
           <div className="flex justify-end space-x-3 pt-4">
             <Link
-              href={ROUTES.TASK_DETAIL(taskId)}
+              href={taskId ? ROUTES.TASK_DETAIL(taskId) : ROUTES.TASKS}
               className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
             >
               İptal

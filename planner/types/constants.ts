@@ -13,11 +13,14 @@ export const API_ENDPOINTS = {
   GROUPS: "/api/groups",
   GROUP_DETAIL: (id: string | number) => `/api/groups/${id}`,
   GROUP_MEMBERS: (id: string | number) => `/api/groups/${id}/members`,
+  GROUP_TASKS: (id: string | number) => `/api/groups/${id}/tasks`,
+  GROUP_SUBGROUPS: (id: string | number) => `/api/groups/${id}/subgroups`,
+  SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
+    `/api/groups/${groupId}/subgroups/${subgroupId}`,
 
   TASKS: "/api/tasks",
   TASK_DETAIL: (id: string | number) => `/api/tasks/${id}`,
   USER_TASKS: (id: string | number) => `/api/users/${id}/tasks`,
-  GROUP_TASKS: (id: string | number) => `/api/groups/${id}/tasks`,
 
   // Eski API'ler
   KISILER: "/api/kisiler",
@@ -30,25 +33,34 @@ export const API_ENDPOINTS = {
 export const ROUTES = {
   HOME: "/",
   LOGIN: "/login",
-  REGISTER: "/register",
-
+  REGISTER: "/signup",
   DASHBOARD: "/dashboard",
-  PROFILE: "/profile",
 
   GROUPS: "/groups",
-  GROUP_DETAIL: (id: string | number) => `/groups/${id}`,
   GROUP_CREATE: "/groups/create",
+  GROUP_DETAIL: (id: string | number) => `/groups/${id}`,
   GROUP_EDIT: (id: string | number) => `/groups/${id}/edit`,
+  GROUP_MEMBERS: (id: string | number) => `/groups/${id}/members`,
+  GROUP_TASKS: (id: string | number) => `/groups/${id}/tasks`,
+
+  // Adding subgroup routes - fixing duplicates
+  GROUP_SUBGROUPS_LIST: (id: string | number) => `/groups/${id}/subgroups`,
+  GROUP_SUBGROUP_CREATE: (id: string | number) => `/groups/${id}/subgroups/create`,
+  GROUP_SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
+    `/groups/${groupId}/subgroups/${subgroupId}`,
 
   TASKS: "/tasks",
-  TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_CREATE: "/tasks/create",
+  TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_EDIT: (id: string | number) => `/tasks/${id}/edit`,
 
   // Eski rotalar
   KISI_EKLE: "/kisi/ekle",
   KISI_DETAY: (id: string | number) => `/kisi/${id}`,
   KISI_DUZENLE: (id: string | number) => `/kisi/${id}/duzenle`,
+  GROUP_SUBGROUPS: (id: string | number) => `/groups/${id}/subgroups`,
+  SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
+    `/groups/${groupId}/subgroups/${subgroupId}`,
 };
 
 /**

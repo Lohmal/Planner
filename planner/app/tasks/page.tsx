@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ROUTES } from "@/types/constants";
 import Link from "next/link";
 import TasksList from "@/components/tasks/TasksList";
+import { Task } from "@/types";
 
 export const dynamic = "force-dynamic";
 
@@ -35,9 +36,9 @@ export default async function TasksPage() {
   const { user, tasks } = await getData();
 
   // Görevleri durumlarına göre grupla
-  const pendingTasks = tasks.filter((task) => task.status === "pending");
-  const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
-  const completedTasks = tasks.filter((task) => task.status === "completed");
+  const pendingTasks = tasks.filter((task: Task) => task.status === "pending");
+  const inProgressTasks = tasks.filter((task: Task) => task.status === "in_progress");
+  const completedTasks = tasks.filter((task: Task) => task.status === "completed");
 
   return (
     <div className="space-y-6">

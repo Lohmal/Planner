@@ -58,6 +58,20 @@ export async function getDB() {
     )
   `);
 
+  // Alt gruplar tablosu
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS subgroups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      group_id INTEGER NOT NULL,
+      creator_id INTEGER NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
+      FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `);
+
   // Görevler (tasks) tablosu
   await db.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
@@ -78,6 +92,21 @@ export async function getDB() {
     )
   `);
 
+  // Görev-Kullanıcı ilişki tablosu (çoklu atama için)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      assigned_by INTEGER NOT NULL,
+      assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (assigned_by) REFERENCES users (id) ON DELETE CASCADE,
+      UNIQUE(task_id, user_id)
+    )
+  `);
+
   // Eski kisiler tablosu da kalsın (uyumluluk için)
   await db.exec(`
     CREATE TABLE IF NOT EXISTS kisiler (
@@ -92,6 +121,18 @@ export async function getDB() {
     )
   `);
 
+  // Check if subgroup_id column exists in tasks table and add it if it doesn't
+  const tableInfo = await db.all("PRAGMA table_info(tasks)");
+  const hasSubgroupId = tableInfo.some((column: { name: string }) => column.name === "subgroup_id");
+
+  if (!hasSubgroupId) {
+    // Add subgroup_id column to tasks table
+    await db.exec(`
+      ALTER TABLE tasks ADD COLUMN subgroup_id INTEGER DEFAULT NULL REFERENCES subgroups(id) ON DELETE SET NULL
+    `);
+    console.log("Added subgroup_id column to tasks table");
+  }
+
   return db;
 }
 
@@ -99,158 +140,16 @@ export async function getDB() {
 export async function initDB() {
   const db = await getDB();
 
-  // Demo kullanıcı oluşturalım (eğer yoksa)
-  const userCount = await db.get("SELECT COUNT(*) as count FROM users");
+  // Check if subgroup_id column exists in tasks table and add it if it doesn't
+  const tableInfo = await db.all("PRAGMA table_info(tasks)");
+  const hasSubgroupId = tableInfo.some((column: { name: string }) => column.name === "subgroup_id");
 
-  if (userCount.count === 0) {
-    // Demo admin kullanıcısı oluştur
-    const hashedPassword = await bcrypt.hash("password", 10);
-    await db.run("INSERT INTO users (username, email, password, full_name) VALUES (?, ?, ?, ?)", [
-      "admin",
-      "admin@example.com",
-      hashedPassword,
-      "Admin User",
-    ]);
-
-    // Birkaç test kullanıcısı daha ekleyelim
-    const testUser1 = await bcrypt.hash("test123", 10);
-    const testUser2 = await bcrypt.hash("test123", 10);
-
-    await db.run("INSERT INTO users (username, email, password, full_name) VALUES (?, ?, ?, ?)", [
-      "ahmet",
-      "ahmet@example.com",
-      testUser1,
-      "Ahmet Yılmaz",
-    ]);
-
-    await db.run("INSERT INTO users (username, email, password, full_name) VALUES (?, ?, ?, ?)", [
-      "ayse",
-      "ayse@example.com",
-      testUser2,
-      "Ayşe Kaya",
-    ]);
-
-    // Demo gruplar oluşturalım
-    const admin = await db.get("SELECT id FROM users WHERE username = ?", ["admin"]);
-
-    await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
-      "Yazılım Ekibi",
-      "Web ve mobil uygulama geliştirme ekibi",
-      admin.id,
-    ]);
-
-    await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
-      "Mekanik Ekibi",
-      "Mekanik tasarım ve üretim ekibi",
-      admin.id,
-    ]);
-
-    await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
-      "Elektrik Ekibi",
-      "Elektrik ve elektronik sistemler ekibi",
-      admin.id,
-    ]);
-
-    // Grup üyelikleri ekleyelim
-    const yazilimGrubu = await db.get("SELECT id FROM groups WHERE name = ?", ["Yazılım Ekibi"]);
-    const mekanikGrubu = await db.get("SELECT id FROM groups WHERE name = ?", ["Mekanik Ekibi"]);
-    const elektrikGrubu = await db.get("SELECT id FROM groups WHERE name = ?", ["Elektrik Ekibi"]);
-
-    const ahmet = await db.get("SELECT id FROM users WHERE username = ?", ["ahmet"]);
-    const ayse = await db.get("SELECT id FROM users WHERE username = ?", ["ayse"]);
-
-    // Admin tüm gruplara admin olarak ekleyelim
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      yazilimGrubu.id,
-      admin.id,
-      "admin",
-    ]);
-
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      mekanikGrubu.id,
-      admin.id,
-      "admin",
-    ]);
-
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      elektrikGrubu.id,
-      admin.id,
-      "admin",
-    ]);
-
-    // Diğer kullanıcılar bazı gruplara üye olsun
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      yazilimGrubu.id,
-      ahmet.id,
-      "member",
-    ]);
-
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      elektrikGrubu.id,
-      ahmet.id,
-      "member",
-    ]);
-
-    await db.run("INSERT INTO group_members (group_id, user_id, role) VALUES (?, ?, ?)", [
-      mekanikGrubu.id,
-      ayse.id,
-      "member",
-    ]);
-
-    // Demo görevler ekleyelim
-    await db.run(
-      "INSERT INTO tasks (title, description, status, priority, due_date, group_id, assigned_to, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        "Frontend geliştirme",
-        "React ile kullanıcı arayüzü geliştirme",
-        "in_progress",
-        "high",
-        "2023-12-31",
-        yazilimGrubu.id,
-        ahmet.id,
-        admin.id,
-      ]
-    );
-
-    await db.run(
-      "INSERT INTO tasks (title, description, status, priority, due_date, group_id, assigned_to, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        "Devre tasarımı",
-        "Güç kaynağı devre tasarımı",
-        "pending",
-        "medium",
-        "2023-12-25",
-        elektrikGrubu.id,
-        ahmet.id,
-        admin.id,
-      ]
-    );
-
-    await db.run(
-      "INSERT INTO tasks (title, description, status, priority, due_date, group_id, assigned_to, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-      [
-        "Parça tedariki",
-        "Mekanik parçaların tedarik edilmesi",
-        "pending",
-        "high",
-        "2023-12-20",
-        mekanikGrubu.id,
-        ayse.id,
-        admin.id,
-      ]
-    );
-  }
-
-  // Eski örnek verileri de ekleyelim
-  const kisiCount = await db.get("SELECT COUNT(*) as count FROM kisiler");
-
-  if (kisiCount.count === 0) {
+  if (!hasSubgroupId) {
+    // Add subgroup_id column to tasks table
     await db.exec(`
-      INSERT INTO kisiler (ad, soyad, email, telefon, adres, notlar) VALUES
-      ('Ahmet', 'Yılmaz', 'ahmet@example.com', '555-123-4567', 'İstanbul, Türkiye', 'Örnek not 1'),
-      ('Ayşe', 'Kaya', 'ayse@example.com', '555-234-5678', 'Ankara, Türkiye', 'Örnek not 2'),
-      ('Mehmet', 'Demir', 'mehmet@example.com', '555-345-6789', 'İzmir, Türkiye', 'Örnek not 3')
+      ALTER TABLE tasks ADD COLUMN subgroup_id INTEGER DEFAULT NULL REFERENCES subgroups(id) ON DELETE SET NULL
     `);
+    console.log("Added subgroup_id column to tasks table");
   }
 
   return db;
@@ -428,72 +327,202 @@ export async function isGroupAdmin(groupId: number | string, userId: number | st
   return !!member;
 }
 
-// Görev (task) işlemleri
-export async function getTasks(): Promise<Task[]> {
+// Alt grup işlemleri
+export async function getSubgroups(groupId: number | string): Promise<any[]> {
   const db = await getDB();
-  return db.all(`
-    SELECT t.*, u.username as assigned_username, u.full_name as assigned_full_name,
-           c.username as creator_username, c.full_name as creator_full_name,
-           g.name as group_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assigned_to = u.id
-    JOIN users c ON t.created_by = c.id
-    JOIN groups g ON t.group_id = g.id
-    ORDER BY t.due_date ASC, t.priority DESC
-  `);
+  return db.all(
+    `
+    SELECT s.*, u.username as creator_username, u.full_name as creator_full_name
+    FROM subgroups s
+    JOIN users u ON s.creator_id = u.id
+    WHERE s.group_id = ?
+    ORDER BY s.created_at DESC
+  `,
+    [groupId]
+  );
 }
 
-export async function getTaskById(id: number | string): Promise<Task | null> {
+export async function getSubgroupById(id: number | string): Promise<any | null> {
   const db = await getDB();
   return db.get(
     `
-    SELECT t.*, u.username as assigned_username, u.full_name as assigned_full_name,
-           c.username as creator_username, c.full_name as creator_full_name,
-           g.name as group_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assigned_to = u.id
-    JOIN users c ON t.created_by = c.id
-    JOIN groups g ON t.group_id = g.id
-    WHERE t.id = ?
+    SELECT s.*, u.username as creator_username, u.full_name as creator_full_name, g.name as group_name
+    FROM subgroups s
+    JOIN users u ON s.creator_id = u.id
+    JOIN groups g ON s.group_id = g.id
+    WHERE s.id = ?
   `,
     [id]
   );
 }
 
-export async function getTasksByGroupId(groupId: number | string): Promise<Task[]> {
+export async function createSubgroup(subgroup: {
+  name: string;
+  description?: string;
+  group_id: number;
+  creator_id: number;
+}): Promise<any | null> {
+  const db = await getDB();
+
+  const result = await db.run(
+    `
+    INSERT INTO subgroups (name, description, group_id, creator_id)
+    VALUES (?, ?, ?, ?)
+  `,
+    [subgroup.name, subgroup.description || null, subgroup.group_id, subgroup.creator_id]
+  );
+
+  return getSubgroupById(result.lastID);
+}
+
+export async function updateSubgroup(
+  id: number | string,
+  subgroup: { name: string; description?: string }
+): Promise<any | null> {
+  const db = await getDB();
+
+  await db.run(
+    `
+    UPDATE subgroups SET name = ?, description = ?
+    WHERE id = ?
+  `,
+    [subgroup.name, subgroup.description || null, id]
+  );
+
+  return getSubgroupById(id);
+}
+
+export async function deleteSubgroup(id: number | string): Promise<boolean> {
+  const db = await getDB();
+  const result = await db.run("DELETE FROM subgroups WHERE id = ?", [id]);
+  return result.changes > 0;
+}
+
+// Çoklu görev atama işlemleri
+export async function assignTaskToUsers(
+  taskId: number | string,
+  userIds: (number | string)[],
+  assignedBy: number | string
+): Promise<number> {
+  const db = await getDB();
+  let successCount = 0;
+
+  for (const userId of userIds) {
+    try {
+      await db.run(
+        `
+        INSERT INTO task_assignments (task_id, user_id, assigned_by)
+        VALUES (?, ?, ?)
+      `,
+        [taskId, userId, assignedBy]
+      );
+      successCount++;
+    } catch (error) {
+      console.error(`Error assigning task ${taskId} to user ${userId}:`, error);
+    }
+  }
+
+  return successCount;
+}
+
+export async function removeTaskAssignment(taskId: number | string, userId: number | string): Promise<boolean> {
+  const db = await getDB();
+  const result = await db.run(
+    `
+    DELETE FROM task_assignments 
+    WHERE task_id = ? AND user_id = ?
+  `,
+    [taskId, userId]
+  );
+  return result.changes > 0;
+}
+
+export async function getTaskAssignees(taskId: number | string): Promise<any[]> {
   const db = await getDB();
   return db.all(
     `
-    SELECT t.*, u.username as assigned_username, u.full_name as assigned_full_name,
-           c.username as creator_username, c.full_name as creator_full_name,
-           g.name as group_name
+    SELECT ta.*, u.username, u.email, u.full_name,
+           a.username as assigner_username, a.full_name as assigner_full_name
+    FROM task_assignments ta
+    JOIN users u ON ta.user_id = u.id
+    JOIN users a ON ta.assigned_by = a.id
+    WHERE ta.task_id = ?
+    ORDER BY ta.assigned_at DESC
+  `,
+    [taskId]
+  );
+}
+
+export async function getTasksByGroupId(groupId: number | string): Promise<Task[]> {
+  const db = await getDB();
+
+  // Get all tasks for this group
+  const tasks = await db.all(
+    `
+    SELECT t.*, g.name as group_name
     FROM tasks t
-    LEFT JOIN users u ON t.assigned_to = u.id
-    JOIN users c ON t.created_by = c.id
     JOIN groups g ON t.group_id = g.id
     WHERE t.group_id = ?
     ORDER BY t.due_date ASC, t.priority DESC
   `,
     [groupId]
   );
+
+  // For each task, get the assignees
+  for (const task of tasks) {
+    task.assignees = await getTaskAssignees(task.id);
+  }
+
+  return tasks;
+}
+
+// Görev (task) işlemleri
+export async function getTasks(): Promise<Task[]> {
+  const db = await getDB();
+  return db.all(`
+    SELECT t.*, g.name as group_name
+    FROM tasks t
+    JOIN groups g ON t.group_id = g.id
+    ORDER BY t.due_date ASC, t.priority DESC
+  `);
 }
 
 export async function getTasksByUserId(userId: number | string): Promise<Task[]> {
   const db = await getDB();
   return db.all(
     `
-    SELECT t.*, u.username as assigned_username, u.full_name as assigned_full_name,
-           c.username as creator_username, c.full_name as creator_full_name,
-           g.name as group_name
+    SELECT t.*, g.name as group_name
     FROM tasks t
-    LEFT JOIN users u ON t.assigned_to = u.id
-    JOIN users c ON t.created_by = c.id
     JOIN groups g ON t.group_id = g.id
-    WHERE t.assigned_to = ?
+    JOIN task_assignments ta ON t.id = ta.task_id
+    WHERE ta.user_id = ?
     ORDER BY t.due_date ASC, t.priority DESC
   `,
     [userId]
   );
+}
+
+export async function getTaskById(id: number | string): Promise<any | null> {
+  const db = await getDB();
+  const task = await db.get(
+    `
+    SELECT t.*, c.username as creator_username, c.full_name as creator_full_name,
+           g.name as group_name, sg.name as subgroup_name
+    FROM tasks t
+    JOIN users c ON t.created_by = c.id
+    JOIN groups g ON t.group_id = g.id
+    LEFT JOIN subgroups sg ON t.subgroup_id = sg.id
+    WHERE t.id = ?
+  `,
+    [id]
+  );
+
+  if (!task) return null;
+
+  // Görevin atandığı kullanıcıları al
+  task.assignees = await getTaskAssignees(id);
+
+  return task;
 }
 
 export async function createTask(task: {
@@ -503,16 +532,19 @@ export async function createTask(task: {
   priority?: string;
   due_date?: string;
   group_id: number;
-  assigned_to?: number;
+  subgroup_id?: number;
   created_by: number;
+  assigned_users?: number[];
 }): Promise<Task | null> {
   const db = await getDB();
 
   const result = await db.run(
-    `INSERT INTO tasks (
+    `
+    INSERT INTO tasks (
       title, description, status, priority, due_date, 
-      group_id, assigned_to, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      group_id, subgroup_id, created_by
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `,
     [
       task.title,
       task.description || null,
@@ -520,12 +552,19 @@ export async function createTask(task: {
       task.priority || "medium",
       task.due_date || null,
       task.group_id,
-      task.assigned_to || null,
+      task.subgroup_id || null,
       task.created_by,
     ]
   );
 
-  return getTaskById(result.lastID);
+  const taskId = result.lastID;
+
+  // Çoklu kullanıcı ataması yap
+  if (task.assigned_users && task.assigned_users.length > 0) {
+    await assignTaskToUsers(taskId, task.assigned_users, task.created_by);
+  }
+
+  return getTaskById(taskId);
 }
 
 export async function updateTask(
@@ -536,7 +575,7 @@ export async function updateTask(
     status?: string;
     priority?: string;
     due_date?: string;
-    assigned_to?: number | null;
+    assigned_users?: number[];
   }
 ): Promise<Task | null> {
   const db = await getDB();
@@ -550,24 +589,33 @@ export async function updateTask(
     status: task.status ?? currentTask.status,
     priority: task.priority ?? currentTask.priority,
     due_date: task.due_date ?? currentTask.due_date,
-    assigned_to: task.assigned_to !== undefined ? task.assigned_to : currentTask.assigned_to,
   };
 
   await db.run(
-    `UPDATE tasks SET
+    `
+    UPDATE tasks SET
       title = ?, description = ?, status = ?, priority = ?,
-      due_date = ?, assigned_to = ?, updated_at = CURRENT_TIMESTAMP
+      due_date = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ?`,
-    [
-      updatedTask.title,
-      updatedTask.description,
-      updatedTask.status,
-      updatedTask.priority,
-      updatedTask.due_date,
-      updatedTask.assigned_to,
-      id,
-    ]
+    [updatedTask.title, updatedTask.description, updatedTask.status, updatedTask.priority, updatedTask.due_date, id]
   );
+
+  // Update task assignments if provided
+  if (task.assigned_users && task.assigned_users.length > 0) {
+    // First remove all existing assignments
+    await db.run(`DELETE FROM task_assignments WHERE task_id = ?`, [id]);
+
+    // Then add the new assignments
+    for (const userId of task.assigned_users) {
+      await db.run(
+        `
+        INSERT INTO task_assignments (task_id, user_id, assigned_by)
+        VALUES (?, ?, ?)
+      `,
+        [id, userId, currentTask.created_by]
+      );
+    }
+  }
 
   return getTaskById(id);
 }
@@ -578,7 +626,7 @@ export async function deleteTask(id: number | string): Promise<boolean> {
   return result.changes > 0;
 }
 
-// Kişi CRUD işlemleri (eski işlevsellik için saklanmıştır)
+// Eski kisiler ile ilgili işlemler
 export async function getKisiler(): Promise<Kisi[]> {
   const db = await getDB();
   return db.all("SELECT * FROM kisiler ORDER BY olusturma_tarihi DESC");

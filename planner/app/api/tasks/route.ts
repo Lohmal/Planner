@@ -1,4 +1,4 @@
-import { getUserById, getGroups, getTasks, createTask, initDB, isGroupMember } from "@/lib/db";
+import { getUserById, getTasks, createTask, initDB, isGroupMember } from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiResponse, Task } from "@/types";
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Yeni görev oluştur
+// Yeni görev oluştur (çoklu kullanıcı ataması ile)
 export async function POST(request: NextRequest) {
   try {
     await initDB();
@@ -59,12 +59,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, status, priority, due_date, group_id, assigned_to, created_by } = body;
+    const { title, description, status, priority, due_date, group_id, subgroup_id, assigned_users, created_by } = body;
 
     // Gerekli alanları kontrol et
     if (!title || !group_id) {
       return NextResponse.json(
         { success: false, message: "Başlık ve grup ID gereklidir", data: null },
+        { status: 400 }
+      );
+    }
+
+    // En az bir kullanıcı atanmış mı kontrol et
+    if (!assigned_users || !Array.isArray(assigned_users) || assigned_users.length === 0) {
+      return NextResponse.json(
+        { success: false, message: "En az bir kullanıcı atanmalıdır", data: null },
         { status: 400 }
       );
     }
@@ -87,8 +95,9 @@ export async function POST(request: NextRequest) {
       priority,
       due_date,
       group_id,
-      assigned_to,
+      subgroup_id,
       created_by: user.id,
+      assigned_users,
     });
 
     const response: ApiResponse<Task | null> = {

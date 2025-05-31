@@ -49,10 +49,21 @@ export const taskSchema = z.object({
   priority: z.string(),
   due_date: z.string().optional().nullable(),
   group_id: z.number(),
-  assigned_to: z.number().optional().nullable(),
+  subgroup_id: z.number().optional().nullable(),
 });
 
 export type TaskForm = z.infer<typeof taskSchema>;
+
+/**
+ * Alt grup formu doğrulama şeması
+ */
+export const subgroupSchema = z.object({
+  name: z.string().min(3, "Alt grup adı en az 3 karakter olmalıdır"),
+  description: z.string().optional(),
+  group_id: z.number(),
+});
+
+export type SubgroupForm = z.infer<typeof subgroupSchema>;
 
 /**
  * Kişi form doğrulama şeması (eski)

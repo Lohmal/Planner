@@ -55,6 +55,22 @@ export type GroupMember = {
 };
 
 /**
+ * Alt Grup modeli
+ */
+export type Subgroup = {
+  id: number;
+  name: string;
+  description?: string;
+  group_id: number;
+  creator_id: number;
+  created_at?: string;
+  // İlişkisel veri
+  creator_username?: string;
+  creator_full_name?: string;
+  group_name?: string;
+};
+
+/**
  * Görev modeli
  */
 export type Task = {
@@ -65,16 +81,33 @@ export type Task = {
   priority: string; // "low" | "medium" | "high"
   due_date?: string;
   group_id: number;
-  assigned_to?: number;
+  subgroup_id?: number;
   created_by: number;
   created_at?: string;
   updated_at?: string;
   // İlişkisel veri
   group_name?: string;
-  assigned_username?: string;
-  assigned_full_name?: string;
+  subgroup_name?: string;
   creator_username?: string;
   creator_full_name?: string;
+  assignees?: TaskAssignee[]; // Atanmış kullanıcılar listesi
+};
+
+/**
+ * Görev atama modeli
+ */
+export type TaskAssignee = {
+  id: number;
+  task_id: number;
+  user_id: number;
+  assigned_by: number;
+  assigned_at?: string;
+  // İlişkisel veri
+  username?: string;
+  email?: string;
+  full_name?: string;
+  assigner_username?: string;
+  assigner_full_name?: string;
 };
 
 /**

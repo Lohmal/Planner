@@ -101,7 +101,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Get request body
     const body = await request.json();
-    const { title, description, status, priority, due_date, assigned_to } = body;
+    const { title, description, status, priority, due_date, assigned_users } = body;
 
     // Validate required fields
     if (!title) {
@@ -115,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       status,
       priority,
       due_date,
-      assigned_to,
+      assigned_users,
     });
 
     const response: ApiResponse<Task | null> = {

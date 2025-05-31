@@ -16,9 +16,13 @@ export default function CreateTask() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [subgroups, setSubgroups] = useState<any[]>([]);
   const [members, setMembers] = useState<User[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedSubgroupId, setSelectedSubgroupId] = useState<number | null>(null);
+  const [selectedAssignees, setSelectedAssignees] = useState<number[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [isLoadingSubgroups, setIsLoadingSubgroups] = useState(false);
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
 
   const {
@@ -36,12 +40,13 @@ export default function CreateTask() {
       priority: "medium",
       due_date: "",
       group_id: undefined,
-      assigned_to: undefined,
+      subgroup_id: undefined,
     },
   });
 
   // İzlenen grup_id değerini al
   const watchedGroupId = watch("group_id");
+  const watchedSubgroupId = watch("subgroup_id");
 
   // Kullanıcının gruplarını yükle
   useEffect(() => {
@@ -73,6 +78,38 @@ export default function CreateTask() {
     loadGroups();
   }, [user, setValue]);
 
+  // Grup değiştiğinde alt grupları yükle
+  useEffect(() => {
+    async function loadSubgroups() {
+      if (!watchedGroupId) {
+        setSubgroups([]);
+        return;
+      }
+
+      try {
+        setIsLoadingSubgroups(true);
+        setSelectedGroupId(Number(watchedGroupId));
+        setValue("subgroup_id", undefined); // Alt grup seçimini sıfırla
+
+        const response = await fetch(`${API_ENDPOINTS.GROUP_DETAIL(watchedGroupId)}/subgroups`);
+        if (!response.ok) throw new Error("Alt gruplar yüklenemedi");
+
+        const data = await response.json();
+        if (data.success && data.data) {
+          setSubgroups(data.data);
+        }
+      } catch (error) {
+        console.error("Alt gruplar yüklenirken hata:", error);
+      } finally {
+        setIsLoadingSubgroups(false);
+      }
+    }
+
+    if (watchedGroupId) {
+      loadSubgroups();
+    }
+  }, [watchedGroupId, setValue]);
+
   // Grup değiştiğinde grup üyelerini yükle
   useEffect(() => {
     async function loadGroupMembers() {
@@ -83,7 +120,6 @@ export default function CreateTask() {
 
       try {
         setIsLoadingMembers(true);
-        setSelectedGroupId(Number(watchedGroupId));
 
         const response = await fetch(API_ENDPOINTS.GROUP_MEMBERS(watchedGroupId));
         if (!response.ok) throw new Error("Grup üyeleri yüklenemedi");
@@ -111,6 +147,23 @@ export default function CreateTask() {
     }
   }, [watchedGroupId]);
 
+  // Alt grup seçildiğinde state'i güncelle
+  useEffect(() => {
+    if (watchedSubgroupId) {
+      setSelectedSubgroupId(Number(watchedSubgroupId));
+    } else {
+      setSelectedSubgroupId(null);
+    }
+  }, [watchedSubgroupId]);
+
+  const toggleAssignee = (userId: number) => {
+    if (selectedAssignees.includes(userId)) {
+      setSelectedAssignees(selectedAssignees.filter((id) => id !== userId));
+    } else {
+      setSelectedAssignees([...selectedAssignees, userId]);
+    }
+  };
+
   const onSubmit = async (data: TaskForm) => {
     if (!user) {
       setError("Oturum açmanız gerekiyor");
@@ -119,6 +172,11 @@ export default function CreateTask() {
 
     if (!data.group_id) {
       setError("Lütfen bir grup seçin");
+      return;
+    }
+
+    if (selectedAssignees.length === 0) {
+      setError("Lütfen en az bir kişi atayın");
       return;
     }
 
@@ -131,7 +189,8 @@ export default function CreateTask() {
         created_by: user.id,
         // Boş string yerine null gönder
         due_date: data.due_date || null,
-        assigned_to: data.assigned_to || null,
+        subgroup_id: data.subgroup_id || null,
+        assigned_users: selectedAssignees,
       };
 
       const response = await fetch(API_ENDPOINTS.TASKS, {
@@ -248,19 +307,19 @@ export default function CreateTask() {
               </div>
 
               <div>
-                <label htmlFor="assigned_to" className="block text-sm font-medium mb-2">
-                  Atanacak Kişi
+                <label htmlFor="subgroup_id" className="block text-sm font-medium mb-2">
+                  Alt Grup
                 </label>
                 <select
-                  id="assigned_to"
-                  {...register("assigned_to", { valueAsNumber: true })}
+                  id="subgroup_id"
+                  {...register("subgroup_id", { valueAsNumber: true })}
                   className="input w-full"
-                  disabled={isSubmitting || isLoadingMembers || !selectedGroupId}
+                  disabled={isSubmitting || isLoadingSubgroups || !selectedGroupId || subgroups.length === 0}
                 >
-                  <option value="">Kişi Seçin (opsiyonel)</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.full_name || member.username}
+                  <option value="">Alt Grup Seçin (opsiyonel)</option>
+                  {subgroups.map((subgroup) => (
+                    <option key={subgroup.id} value={subgroup.id}>
+                      {subgroup.name}
                     </option>
                   ))}
                 </select>
@@ -306,6 +365,48 @@ export default function CreateTask() {
                   disabled={isSubmitting}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Atanacak Kişiler *</label>
+              {isLoadingMembers ? (
+                <div className="py-4 text-center">
+                  <p className="text-gray-500 dark:text-gray-400">Üyeler yükleniyor...</p>
+                </div>
+              ) : members.length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-gray-500 dark:text-gray-400">Bu grupta üye bulunmamaktadır.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                  {members.map((member) => (
+                    <div
+                      key={member.id}
+                      className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                        selectedAssignees.includes(member.id)
+                          ? "bg-blue-50 border-blue-300 dark:bg-blue-900/30 dark:border-blue-700"
+                          : "border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                      onClick={() => toggleAssignee(member.id)}
+                    >
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedAssignees.includes(member.id)}
+                          onChange={() => toggleAssignee(member.id)}
+                          className="h-4 w-4 text-blue-600 rounded"
+                        />
+                        <div className="ml-3">
+                          <p className="font-medium">{member.full_name || member.username}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {selectedAssignees.length > 0 && (
+                <p className="mt-2 text-sm text-blue-600">{selectedAssignees.length} kişi seçildi</p>
+              )}
             </div>
 
             <div className="flex justify-end space-x-3 pt-4">

@@ -89,9 +89,12 @@ export default function GroupTasks({ tasks }: { tasks: Task[] }) {
               {getPriorityLabel(task.priority)}
             </span>
 
-            {task.assigned_to && (
+            {task.assignees && task.assignees.length > 0 && (
               <span className="text-gray-600 dark:text-gray-300">
-                Atanan: {task.assigned_full_name || task.assigned_username || "Bilinmiyor"}
+                Atanan:{" "}
+                {task.assignees.length > 1
+                  ? `${task.assignees.length} kişi`
+                  : task.assignees[0].full_name || task.assignees[0].username || "Bilinmiyor"}
               </span>
             )}
 
