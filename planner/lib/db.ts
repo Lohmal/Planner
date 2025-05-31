@@ -133,6 +133,50 @@ export async function getDB() {
     console.log("Added subgroup_id column to tasks table");
   }
 
+  // Bildirimler tablosu
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      type TEXT NOT NULL, -- 'task_assigned', 'task_due_soon', 'group_invitation', etc.
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      related_id INTEGER, -- task_id, group_id, etc. depending on the type
+      is_read INTEGER DEFAULT 0, -- 0: not read, 1: read
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Grup davetleri tablosu
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS group_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      invited_by INTEGER NOT NULL,
+      status TEXT DEFAULT 'pending', -- 'pending', 'accepted', 'rejected'
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      FOREIGN KEY (invited_by) REFERENCES users (id) ON DELETE CASCADE,
+      UNIQUE(group_id, user_id)
+    )
+  `);
+
+  // Task comments table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      comment TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (task_id) REFERENCES tasks (id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    )
+  `);
+
   return db;
 }
 
@@ -680,4 +724,314 @@ export async function isEmailUnique(email: string, excludeId?: number | string):
 
   const result = await db.get(query, params);
   return result.count === 0;
+}
+
+// Bildirim işlemleri
+export async function getNotifications(userId: number | string): Promise<any[]> {
+  const db = await getDB();
+  return db.all(
+    `
+    SELECT * FROM notifications
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 50
+    `,
+    [userId]
+  );
+}
+
+export async function getUnreadNotificationsCount(userId: number | string): Promise<number> {
+  const db = await getDB();
+  const result = await db.get(
+    `
+    SELECT COUNT(*) as count FROM notifications
+    WHERE user_id = ? AND is_read = 0
+    `,
+    [userId]
+  );
+  return result.count || 0;
+}
+
+export async function markNotificationAsRead(notificationId: number | string): Promise<boolean> {
+  const db = await getDB();
+  const result = await db.run(
+    `
+    UPDATE notifications
+    SET is_read = 1
+    WHERE id = ?
+    `,
+    [notificationId]
+  );
+  return result.changes > 0;
+}
+
+export async function markAllNotificationsAsRead(userId: number | string): Promise<boolean> {
+  const db = await getDB();
+  const result = await db.run(
+    `
+    UPDATE notifications
+    SET is_read = 1
+    WHERE user_id = ?
+    `,
+    [userId]
+  );
+  return result.changes > 0;
+}
+
+export async function createNotification(notification: {
+  user_id: number | string;
+  type: string;
+  title: string;
+  message: string;
+  related_id?: number;
+}): Promise<any> {
+  const db = await getDB();
+  const result = await db.run(
+    `
+    INSERT INTO notifications (user_id, type, title, message, related_id)
+    VALUES (?, ?, ?, ?, ?)
+    `,
+    [notification.user_id, notification.type, notification.title, notification.message, notification.related_id || null]
+  );
+  return result.lastID;
+}
+
+// Grup davetleri işlemleri
+export async function createGroupInvitation(invitation: {
+  group_id: number | string;
+  user_id: number | string;
+  invited_by: number | string;
+}): Promise<any> {
+  const db = await getDB();
+
+  try {
+    // Önce davet oluştur
+    const result = await db.run(
+      `
+      INSERT INTO group_invitations (group_id, user_id, invited_by)
+      VALUES (?, ?, ?)
+      `,
+      [invitation.group_id, invitation.user_id, invitation.invited_by]
+    );
+
+    // Davet bildirimi oluştur
+    const group = await getGroupById(invitation.group_id);
+    const inviter = await getUserById(invitation.invited_by);
+
+    if (group && inviter) {
+      await createNotification({
+        user_id: invitation.user_id,
+        type: "group_invitation",
+        title: "Grup Daveti",
+        message: `${inviter.full_name || inviter.username} sizi "${group.name}" grubuna davet etti.`,
+        related_id: result.lastID,
+      });
+    }
+
+    return result.lastID;
+  } catch (error) {
+    console.error("Group invitation error:", error);
+    return null;
+  }
+}
+
+export async function getGroupInvitations(userId: number | string): Promise<any[]> {
+  const db = await getDB();
+  return db.all(
+    `
+    SELECT gi.*, g.name as group_name, u.username as inviter_username, u.full_name as inviter_full_name
+    FROM group_invitations gi
+    JOIN groups g ON gi.group_id = g.id
+    JOIN users u ON gi.invited_by = u.id
+    WHERE gi.user_id = ? AND gi.status = 'pending'
+    ORDER BY gi.created_at DESC
+    `,
+    [userId]
+  );
+}
+
+export async function respondToGroupInvitation(
+  invitationId: number | string,
+  response: "accepted" | "rejected"
+): Promise<boolean> {
+  const db = await getDB();
+
+  try {
+    // Get invitation details first
+    const invitation = await db.get(
+      `
+      SELECT * FROM group_invitations
+      WHERE id = ? AND status = 'pending'
+      `,
+      [invitationId]
+    );
+
+    if (!invitation) return false;
+
+    // Update invitation status
+    await db.run(
+      `
+      UPDATE group_invitations
+      SET status = ?
+      WHERE id = ?
+      `,
+      [response, invitationId]
+    );
+
+    // If accepted, add user to group
+    if (response === "accepted") {
+      await addGroupMember(invitation.group_id, invitation.user_id);
+
+      // Notify group creator
+      const group = await getGroupById(invitation.group_id);
+      const user = await getUserById(invitation.user_id);
+
+      if (group && user) {
+        await createNotification({
+          user_id: group.creator_id,
+          type: "group_member_joined",
+          title: "Yeni Grup Üyesi",
+          message: `${user.full_name || user.username} "${group.name}" grubuna katıldı.`,
+          related_id: group.id,
+        });
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Respond to invitation error:", error);
+    return false;
+  }
+}
+
+// Kullanıcı arama fonksiyonu
+export async function searchUsers(query: string, excludeUserIds: (number | string)[] = []): Promise<User[]> {
+  const db = await getDB();
+
+  const excludePlaceholders = excludeUserIds.map(() => "?").join(",");
+  const params = [`%${query}%`, `%${query}%`, `%${query}%`];
+
+  let sql = `
+    SELECT id, username, email, full_name
+    FROM users
+    WHERE (username LIKE ? OR email LIKE ? OR full_name LIKE ?)
+  `;
+
+  if (excludeUserIds.length > 0) {
+    sql += ` AND id NOT IN (${excludePlaceholders})`;
+    params.push(...excludeUserIds.map((id) => id.toString()));
+  }
+
+  sql += " LIMIT 10";
+
+  return db.all(sql, params);
+}
+
+// Add interface for TaskAssignee
+interface TaskAssignee {
+  id: number;
+  task_id: number;
+  user_id: number;
+  assigned_by: number;
+  assigned_at: string;
+}
+
+// Task görevi ataması için bildirim oluşturma
+export async function notifyTaskAssignment(
+  taskId: number | string,
+  userId: number | string,
+  assignedBy: number | string
+): Promise<void> {
+  const task = await getTaskById(taskId);
+  const assigner = await getUserById(assignedBy);
+
+  if (task && assigner) {
+    await createNotification({
+      user_id: userId,
+      type: "task_assigned",
+      title: "Yeni Görev Atandı",
+      message: `${assigner.full_name || assigner.username} size "${task.title}" görevini atadı.`,
+      related_id: Number(task.id),
+    });
+  }
+}
+
+// Task yorumları işlemleri
+export async function getTaskComments(taskId: number | string): Promise<any[]> {
+  const db = await getDB();
+  return db.all(
+    `
+    SELECT tc.*, u.username, u.email, u.full_name
+    FROM task_comments tc
+    JOIN users u ON tc.user_id = u.id
+    WHERE tc.task_id = ?
+    ORDER BY tc.created_at DESC
+    `,
+    [taskId]
+  );
+}
+
+export async function addTaskComment(comment: {
+  task_id: number | string;
+  user_id: number | string;
+  comment: string;
+}): Promise<any> {
+  const db = await getDB();
+  const result = await db.run(
+    `
+    INSERT INTO task_comments (task_id, user_id, comment)
+    VALUES (?, ?, ?)
+    `,
+    [comment.task_id, comment.user_id, comment.comment]
+  );
+
+  // Create a notification for each assignee of the task
+  const task = await getTaskById(comment.task_id);
+  const commenter = await getUserById(comment.user_id);
+
+  if (task && task.assignees && commenter) {
+    // Exclude the commenter from notifications
+    const assigneesToNotify = task.assignees
+      .filter((assignee: TaskAssignee) => assignee.user_id != comment.user_id)
+      .map((assignee: TaskAssignee) => assignee.user_id);
+
+    // Create a notification for each assignee
+    for (const assigneeId of assigneesToNotify) {
+      await createNotification({
+        user_id: assigneeId,
+        type: "task_comment",
+        title: "Görev Yorumu",
+        message: `${commenter.full_name || commenter.username} "${task.title}" görevine yorum ekledi.`,
+        related_id: task.id,
+      });
+    }
+
+    // Also notify the task creator if they're not the commenter
+    if (task.created_by != comment.user_id) {
+      await createNotification({
+        user_id: task.created_by,
+        type: "task_comment",
+        title: "Görev Yorumu",
+        message: `${commenter.full_name || commenter.username} "${task.title}" görevine yorum ekledi.`,
+        related_id: task.id,
+      });
+    }
+  }
+
+  return result.lastID;
+}
+
+export async function deleteTaskComment(commentId: number | string, userId: number | string): Promise<boolean> {
+  const db = await getDB();
+
+  // Check if the user is the author of the comment
+  const comment = await db.get(`SELECT * FROM task_comments WHERE id = ? AND user_id = ?`, [commentId, userId]);
+
+  if (!comment) {
+    return false;
+  }
+
+  const result = await db.run(`DELETE FROM task_comments WHERE id = ?`, [commentId]);
+
+  return result.changes > 0;
 }

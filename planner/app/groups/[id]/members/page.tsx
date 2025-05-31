@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ROUTES } from "@/types/constants";
 import Link from "next/link";
+import { UserPlus } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,8 @@ export default async function GroupMembersPage({ params }: { params: { id: strin
             Gruba Dön
           </Link>
           {isAdmin && (
-            <Link href={`/groups/${group.id}/invite`} className="btn btn-primary">
+            <Link href={`/groups/${group.id}/invite`} className="btn btn-primary flex items-center">
+              <UserPlus className="h-4 w-4 mr-2" />
               Üye Davet Et
             </Link>
           )}

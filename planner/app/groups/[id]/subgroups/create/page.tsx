@@ -1,28 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import Link from "next/link";
-import { useAuth } from "@/lib/authContext";
+import { subgroupSchema, SubgroupForm } from "@/types/validators"; // Ensure this is defined
 import { API_ENDPOINTS, ROUTES } from "@/types/constants";
+import { useAuth } from "@/lib/authContext";
+import Link from "next/link";
 
-// Form doğrulama şeması
-const subgroupSchema = z.object({
-  name: z.string().min(3, "Alt grup adı en az 3 karakter olmalıdır"),
-  description: z.string().optional(),
-});
-
-type SubgroupForm = z.infer<typeof subgroupSchema>;
-
-export default function CreateSubgroup({ params }: { params: { id: string } }) {
+export default function CreateSubgroup() {
   const router = useRouter();
+  const params = useParams();
+  // Use type assertion to get the id as string
+  const groupId = (Array.isArray(params.id) ? params.id[0] : params.id) as string;
+
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [groupId, setGroupId] = useState<string>("");
+  const [groupName, setGroupName] = useState<string>("");
 
   const {
     register,
@@ -36,12 +32,33 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
     },
   });
 
-  // Use params directly instead of React.use
+  // Fetch group data to show the group name
   useEffect(() => {
-    if (params.id) {
-      setGroupId(params.id);
+    async function fetchGroupData() {
+      if (!groupId || !user) return;
+
+      try {
+        const response = await fetch(API_ENDPOINTS.GROUP_DETAIL(groupId));
+
+        if (!response.ok) {
+          throw new Error("Grup bilgileri alınırken bir hata oluştu");
+        }
+
+        const data = await response.json();
+
+        if (!data.success || !data.data) {
+          throw new Error(data.message || "Grup bulunamadı");
+        }
+
+        setGroupName(data.data.name);
+      } catch (error) {
+        console.error("Grup bilgileri alınırken hata:", error);
+        setError(error instanceof Error ? error.message : "Bir hata oluştu");
+      }
     }
-  }, [params.id]);
+
+    fetchGroupData();
+  }, [groupId, user]);
 
   const onSubmit = async (data: SubgroupForm) => {
     if (!user) {
@@ -53,16 +70,18 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
     setError(null);
 
     try {
-      const response = await fetch(`${API_ENDPOINTS.GROUP_DETAIL(groupId)}/subgroups`, {
+      const subgroupData = {
+        ...data,
+        group_id: Number(groupId),
+      };
+
+      // Use the correct API endpoint for creating subgroups
+      const response = await fetch(`/api/groups/${groupId}/subgroups`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          ...data,
-          group_id: parseInt(groupId),
-          creator_id: user.id,
-        }),
+        body: JSON.stringify(subgroupData),
       });
 
       const responseData = await response.json();
@@ -71,7 +90,7 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
         throw new Error(responseData.message || "Alt grup oluşturulurken bir hata oluştu");
       }
 
-      router.push(`/groups/${groupId}/subgroups`);
+      router.push(ROUTES.GROUP_DETAIL(groupId));
       router.refresh();
     } catch (error) {
       console.error("Alt grup oluşturulurken hata:", error);
@@ -84,18 +103,12 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Yeni Alt Grup Oluştur</h1>
-        <Link href={`/groups/${groupId}/subgroups`} className="text-blue-600 hover:underline flex items-center gap-1">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Geri Dön
+        <div>
+          <h1 className="text-3xl font-bold">Alt Grup Oluştur</h1>
+          {groupName && <p className="text-gray-600 dark:text-gray-300">{groupName} grubu içinde</p>}
+        </div>
+        <Link href={ROUTES.GROUP_DETAIL(groupId)} className="btn btn-outline">
+          İptal
         </Link>
       </div>
 
@@ -115,7 +128,7 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
               id="name"
               {...register("name")}
               className="input w-full"
-              placeholder="Örn: Frontend Ekibi"
+              placeholder="Alt grup adı"
               disabled={isSubmitting}
             />
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
@@ -130,18 +143,12 @@ export default function CreateSubgroup({ params }: { params: { id: string } }) {
               {...register("description")}
               className="input w-full"
               rows={4}
-              placeholder="Alt grup hakkında açıklama (isteğe bağlı)"
+              placeholder="Alt grup açıklaması (isteğe bağlı)"
               disabled={isSubmitting}
             />
           </div>
 
-          <div className="flex justify-end space-x-3 pt-4">
-            <Link
-              href={`/groups/${groupId}/subgroups`}
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-            >
-              İptal
-            </Link>
+          <div className="flex justify-end">
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
               {isSubmitting ? "Oluşturuluyor..." : "Alt Grup Oluştur"}
             </button>

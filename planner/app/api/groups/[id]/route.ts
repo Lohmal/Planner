@@ -6,7 +6,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     await initDB();
 
-    // Get the user ID from cookies - add await here
+    // Get the user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
@@ -20,8 +20,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
     }
 
-    // Get the group ID from params
-    const groupId = params.id;
+    // Get the group ID from params - Await params before accessing properties
+    const resolvedParams = await params;
+    const groupId = resolvedParams.id;
 
     // Check if the user is a member of the group
     const isMember = await isGroupMember(groupId, userId.value);

@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   TASKS: "/api/tasks",
   TASK_DETAIL: (id: string | number) => `/api/tasks/${id}`,
   USER_TASKS: (id: string | number) => `/api/users/${id}/tasks`,
+  TASK_COMMENTS: (taskId: string | number) => `/api/tasks/${taskId}/comments`,
 
   // Eski API'ler
   KISILER: "/api/kisiler",

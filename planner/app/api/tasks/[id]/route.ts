@@ -1,4 +1,12 @@
-import { getTaskById, updateTask, deleteTask, getUserById, initDB, isGroupMember } from "@/lib/db";
+import {
+  getTaskById,
+  updateTask,
+  deleteTask,
+  getUserById,
+  initDB,
+  isGroupMember,
+  notifyTaskAssignment,
+} from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiResponse, Task } from "@/types";
@@ -117,6 +125,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       due_date,
       assigned_users,
     });
+
+    // Create notifications for newly assigned users
+    if (assigned_users && assigned_users.length > 0) {
+      for (const userId of assigned_users) {
+        await notifyTaskAssignment(taskId, userId, user.id);
+      }
+    }
 
     const response: ApiResponse<Task | null> = {
       success: true,
