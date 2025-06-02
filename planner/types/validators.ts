@@ -70,17 +70,3 @@ export const subgroupSchema = z.object({
 });
 
 export type SubgroupForm = z.infer<typeof subgroupSchema>;
-
-/**
- * Kişi form doğrulama şeması (eski)
- */
-export const kisiSchema = z.object({
-  ad: z.string().min(2, VALIDATION_MESSAGES.AD_REQUIRED),
-  soyad: z.string().min(2, VALIDATION_MESSAGES.SOYAD_REQUIRED),
-  email: z.string().email(VALIDATION_MESSAGES.EMAIL_INVALID),
-  telefon: z.string().optional(),
-  adres: z.string().optional(),
-  notlar: z.string().optional(),
-});
-
-export type KisiForm = z.infer<typeof kisiSchema>;

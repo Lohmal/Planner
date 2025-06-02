@@ -1,6 +1,6 @@
 import sqlite3 from "sqlite3";
 import { open } from "sqlite";
-import { User, Group, Task, GroupMember } from "@/types"; // Removed Kisi import
+import { User, Group, Task, GroupMember } from "@/types";
 import bcrypt from "bcryptjs";
 
 // Veritabanı bağlantısı için tek bir örnek (singleton) oluşturalım

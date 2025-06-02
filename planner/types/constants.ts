@@ -25,10 +25,6 @@ export const API_ENDPOINTS = {
   TASK_COMMENTS: (id: string | number) => `/api/tasks/${id}/comments`,
   GROUP_TASKS: (id: string | number) => `/api/tasks?groupId=${id}`,
 
-  // Eski API'ler
-  KISILER: "/api/kisiler",
-  KISI_DETAY: (id: string | number) => `/api/kisiler/${id}`,
-
   // Yeni alt grup API'leri
   SUBGROUP_API_DETAIL: (id: string | number) => `/api/subgroups/${id}`,
   SUBGROUP_API_TASKS: (id: string | number) => `/api/subgroups/${id}/tasks`,
@@ -53,9 +49,7 @@ export const ROUTES = {
   TASKS: "/tasks",
   TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_EDIT: (id: string | number) => `/tasks/${id}/edit`,
-  KISILER: "/kisiler",
-  KISI_EKLE: "/kisiler/ekle",
-  KISI_DETAY: (id: string | number) => `/kisiler/${id}`,
+
   // Update to use consistent parameter naming
   SUBGROUP_DETAIL: (groupId: string | number, subgroupId: string | number) =>
     `/groups/${groupId}/subgroups/${subgroupId}`,
