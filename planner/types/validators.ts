@@ -10,7 +10,12 @@ export const loginSchema = z.object({
 });
 
 export type LoginForm = z.infer<typeof loginSchema>;
-
+/**
+ * Şifre sıfırlama formu doğrulama şeması
+ */
+export const forgotPasswordSchema = z.object({
+  email: z.string().email("Geçerli bir e-posta adresi giriniz."),
+});
 /**
  * Kayıt formu doğrulama şeması
  */
