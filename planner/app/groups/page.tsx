@@ -92,7 +92,7 @@ export default async function GroupsPage() {
             <Link
               key={group.id}
               href={ROUTES.GROUP_DETAIL(group.id)}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:bg-gray-100 hover:dark:bg-gray-700 transition-shadow"
             >
               <div className="p-6">
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{group.name}</h2>
