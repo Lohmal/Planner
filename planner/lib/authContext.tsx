@@ -12,7 +12,7 @@ type AuthContextType = {
   register: (data: { username: string; email: string; password: string; fullName?: string }) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>; // Add this method
-  resetPassword: (email: string) => Promise<{ success: boolean; message?: string }> // Add resetPassword method
+  resetPassword: (email: string) => Promise<{ success: boolean; message?: string }>; // Add resetPassword method
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -146,20 +146,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Şifre sıfırlama fonksiyonu
   const resetPassword = async (email: string) => {
     try {
-      const response = await fetch("/api/auth/forgotpassword", {
+      const response = await fetch(API_ENDPOINTS.RESET_PASSWORD, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ email }),
       });
+
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error("Şifre sıfırlama sırasında hata:", error);
-      return { success: false, message: "Bir hata oluştu" };
+      console.error("Şifre sıfırlama hatası:", error);
+      return { success: false, message: "Şifre sıfırlama sırasında bir hata oluştu" };
     }
   };
 
