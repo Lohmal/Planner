@@ -1,17 +1,17 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
 // Email gönderici konfigürasyonu
 // Not: Production ortamında gerçek SMTP ayarları kullanılmalıdır
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: process.env.SMTP_SECURE === 'true',
+  host: process.env.SMTP_HOST || "smtp.gmail.com",
+  port: parseInt(process.env.SMTP_PORT || "587"),
+  secure: process.env.SMTP_SECURE === "true",
   auth: {
-    user: process.env.SMTP_USER || 'your-email@gmail.com',
-    pass: process.env.SMTP_PASSWORD || 'your-password',
+    user: process.env.SMTP_USER || "lohmal2568@gmail.com",
+    pass: process.env.SMTP_PASSWORD || "lgmh qvwl cjqf qvkv",
   },
 });
-
+console.log(process.env.SMTP_USER, process.env.SMTP_PASSWORD);
 export interface EmailOptions {
   to: string;
   subject: string;
@@ -26,16 +26,16 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
   try {
     // E-posta gönderimi
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || '"Planner App" <your-email@gmail.com>',
+      from: process.env.SMTP_FROM || '"Planner App" <lohmal2568@gmail.com>',
       to: options.to,
       subject: options.subject,
       text: options.text,
       html: options.html,
     });
-    
+
     return true;
   } catch (error) {
-    console.error('E-posta gönderilirken hata:', error);
+    console.error("E-posta gönderilirken hata:", error);
     return false;
   }
 }
@@ -44,8 +44,8 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
  * Şifre sıfırlama e-postası gönderme
  */
 export async function sendPasswordResetEmail(email: string, tempPassword: string): Promise<boolean> {
-  const subject = 'Planner - Şifre Sıfırlama';
-  
+  const subject = "Planner - Şifre Sıfırlama";
+
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #4a6cf7;">Planner - Şifre Sıfırlama</h2>
@@ -59,7 +59,7 @@ export async function sendPasswordResetEmail(email: string, tempPassword: string
       <p>Saygılarımızla,<br>Planner Ekibi</p>
     </div>
   `;
-  
+
   const text = `
     Planner - Şifre Sıfırlama
     
@@ -76,7 +76,7 @@ export async function sendPasswordResetEmail(email: string, tempPassword: string
     Saygılarımızla,
     Planner Ekibi
   `;
-  
+
   return sendEmail({
     to: email,
     subject,
