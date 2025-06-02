@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useAuth } from "@/lib/authContext";
 import { useState, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
@@ -217,6 +218,7 @@ export default function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link className="flex-shrink-0 flex items-center" href={user ? ROUTES.DASHBOARD : ROUTES.HOME}>
+              <Image src="/logo.png" alt="Logo" width={60} height={60} />
               <span className="text-xl font-bold text-blue-600 dark:text-blue-400">Planner</span>
             </Link>
 
