@@ -12,6 +12,7 @@ type AuthContextType = {
   register: (data: { username: string; email: string; password: string; fullName?: string }) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>; // Add this method
+  resetPassword: (email: string) => Promise<{ success: boolean; message?: string }> // Add resetPassword method
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -54,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!loading) {
       // Genel erişim sayfaları (bu sayfalara hem giriş yapmış hem de yapmamış kullanıcılar erişebilir)
-      const publicRoutes = [ROUTES.LOGIN, ROUTES.REGISTER];
+      const publicRoutes = [ROUTES.LOGIN, ROUTES.REGISTER, ROUTES.FORGOT_PASSWORD];
 
       // Kullanıcı oturum açmamışsa ve korumalı bir sayfadaysa login sayfasına yönlendir
       if (!user && !publicRoutes.includes(pathname)) {
@@ -145,8 +146,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const resetPassword = async (email: string) => {
+    try {
+      const response = await fetch("/api/auth/forgotpassword", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Şifre sıfırlama sırasında hata:", error);
+      return { success: false, message: "Bir hata oluştu" };
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

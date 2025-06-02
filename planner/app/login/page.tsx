@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState} from "react";
 import { useAuth } from "@/lib/authContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, LoginForm } from "@/types/validators";
@@ -51,20 +52,7 @@ export default function Login() {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
           <div className="w-20 h-20 rounded-full bg-blue-600 flex items-center justify-center text-white">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-10 h-10"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
-              />
-            </svg>
+             <Image src="/logo.png" alt="Logo" width={80} height={80} />
           </div>
         </div>
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight">{APP_CONSTANTS.TITLE}</h2>
@@ -119,21 +107,7 @@ export default function Login() {
             </div>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">Demo bilgileri</span>
-              </div>
-            </div>
-            <p className="mt-3 text-center text-sm text-gray-600">
-              <span className="font-semibold">E-posta:</span> admin@example.com
-              <br />
-              <span className="font-semibold">Şifre:</span> password
-            </p>
-          </div>
+          
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
@@ -142,6 +116,18 @@ export default function Login() {
                 Kayıt ol
               </Link>
             </p>
+          </div>
+          <div className="mt-3">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+            
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <Link href={ROUTES.FORGOT_PASSWORD} className="text-blue-600 hover:text-blue-500">
+                Şifrenizi mi unuttunuz?
+              </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>

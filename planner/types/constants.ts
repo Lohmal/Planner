@@ -41,6 +41,7 @@ export const ROUTES = {
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
   GROUPS: "/groups",
+  FORGOT_PASSWORD: "/forgotpassword",
   GROUP_CREATE: "/groups/create",
   GROUP_DETAIL: (id: string | number) => `/groups/${id}`,
   GROUP_EDIT: (id: string | number) => `/groups/${id}/edit`,
