@@ -48,10 +48,7 @@ export default async function TasksPage() {
           <h1 className="text-3xl font-bold">Görevlerim</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-1">Size atanan tüm görevleri burada görebilirsiniz</p>
         </div>
-        <div className="bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 p-2 rounded-md flex items-center">
-          <Info className="h-4 w-4 mr-2" />
-          <span className="text-sm">Görevler artık gruplar içerisinde oluşturulabilir</span>
-        </div>
+
       </div>
 
       {tasks.length === 0 ? (

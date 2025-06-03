@@ -100,7 +100,7 @@ export default function CreateGroup() {
               id="name"
               {...register("name")}
               className="input w-full"
-              placeholder="Örn: Yazılım Ekibi"
+              placeholder="Grup adı"
               disabled={isSubmitting}
             />
             {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}

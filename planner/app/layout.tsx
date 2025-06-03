@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Planlayıcı Uygulaması",
+  title: "Planner",
   description: "Grup ve görev yönetim uygulaması",
 };
 

@@ -7,7 +7,7 @@ import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
 import GroupMembers from "@/components/groups/GroupMembers";
 import GroupTasks from "@/components/groups/GroupTasks";
-import { Folders, PlusCircle } from "lucide-react";
+import { Folders, PlusCircle, CircleChevronRight } from "lucide-react";
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -242,12 +242,13 @@ export default function GroupDetailPage() {
             {/* User icon */}
             Üyeler ({members.length})
           </h2>
-          <Link
+            <Link
             href={`/groups/${groupId}/members`}
-            className="text-blue-600 dark:text-blue-400 hover:underline text-sm"
-          >
+            className="btn btn-sm btn-primary flex items-center"
+            >
+            <CircleChevronRight className="h-4 w-4 mr-2" />
             Tümünü Gör
-          </Link>
+            </Link>
         </div>
 
         {user ? (
