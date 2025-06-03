@@ -187,30 +187,42 @@ export default function CreateTaskPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="status" className="block text-sm font-medium mb-2">
-                Durum
-              </label>
-              <select id="status" {...register("status")} className="select w-full" disabled={isSubmitting}>
-                <option value="pending">Beklemede</option>
-                <option value="in_progress">Devam Ediyor</option>
-                <option value="completed">Tamamlandı</option>
-              </select>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div>
+    <label htmlFor="status" className="block text-sm font-semibold text-white mb-2">
+      Durum
+    </label>
+    <select
+      id="status"
+      {...register("status")}
+      className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200"
+      disabled={isSubmitting}
+    >
+      <option value="pending"> Beklemede</option>
+      <option value="in_progress"> Devam Ediyor</option>
+      <option value="completed">Tamamlandı</option>
+    </select>
+  </div>
 
-            <div>
-              <label htmlFor="priority" className="block text-sm font-medium mb-2">
-                Öncelik
-              </label>
-              <select id="priority" {...register("priority")} className="select w-full" disabled={isSubmitting}>
-                <option value="low">Düşük</option>
-                <option value="medium">Orta</option>
-                <option value="high">Yüksek</option>
-              </select>
-            </div>
-          </div>
-
+  <div>
+  <label
+    htmlFor="priority"
+    className="block text-sm font-semibold text-gray-700 mb-2"
+  >
+    Öncelik
+  </label>
+  <select
+    id="priority"
+    {...register("priority")}
+    disabled={isSubmitting}
+    className="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-200"
+  >
+    <option value="low"> Düşük</option>
+    <option value="medium"> Orta</option>
+    <option value="high"> Yüksek</option>
+  </select>
+</div>
+</div>
           <div>
             <label htmlFor="due_date" className="inline-flex items-center text-sm font-medium mb-2">
               <Calendar className="h-4 w-4 mr-1" />

@@ -40,7 +40,7 @@ export default async function Dashboard() {
   return (
     <div className="space-y-8">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-        <h1 className="text-2xl font-bold mb-2">Hoşgeldiniz, {user.full_name || user.username}</h1>
+        <h1 className="text-2xl font-bold mb-2">Hoşgeldiniz, {user.full_name || user.username}!</h1>
         <p className="text-gray-600 dark:text-gray-300">Gruplarınızı ve görevlerinizi bu ekrandan yönetebilirsiniz.</p>
       </div>
 
