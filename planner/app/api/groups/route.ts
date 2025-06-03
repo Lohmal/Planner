@@ -78,6 +78,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: "Grup adı gereklidir", data: null }, { status: 400 });
     }
 
+    // Aynı kullanıcıya ait aynı isimde grup var mı kontrol et
+    const db = await import("@/lib/db").then(m => m.getDB());
+    const existingGroup = await db.get(
+      "SELECT * FROM groups WHERE creator_id = ? AND LOWER(name) = LOWER(?)",
+      [userId.value, name.trim()]
+    );
+    if (existingGroup) {
+      return NextResponse.json(
+        { success: false, message: "Aynı isimde bir grubunuz zaten var.", data: null },
+        { status: 400 }
+      );
+    }
+
     // Create the group
     const newGroup = await createGroup({
       name,
