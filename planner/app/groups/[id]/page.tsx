@@ -269,13 +269,13 @@ export default function GroupDetailPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">Görevler</h2>
-          <Link href={`/groups/${groupId}/tasks/create`} className="btn btn-sm btn-primary flex items-center">
+          <Link href={ROUTES.GROUP_TASKS_CREATE(groupId)} className="btn btn-sm btn-primary flex items-center">
             <PlusCircle className="h-4 w-4 mr-2" />
             Yeni Görev
           </Link>
         </div>
 
-        <GroupTasks tasks={tasks.slice(0, 5)} />
+        <GroupTasks tasks={tasks.slice(0, 5)} groupId={groupId} />
         {tasks.length > 5 && (
           <div className="mt-4 text-center">
             <Link href={`/groups/${groupId}/tasks`} className="text-blue-600 hover:underline">

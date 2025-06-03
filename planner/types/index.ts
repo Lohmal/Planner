@@ -20,6 +20,7 @@ export type Group = {
   description?: string;
   creator_id: number;
   created_at?: string;
+  members_can_create_tasks?: boolean; // New flag to control if regular members can create tasks
   // İlişkisel veri
   creator?: User;
   member_count?: number;
@@ -104,4 +105,3 @@ export type ApiResponse<T> = {
   success: boolean;
   message?: string;
 };
-

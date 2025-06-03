@@ -1,4 +1,12 @@
-import { getUserById, getTasks, createTask, initDB, isGroupMember } from "@/lib/db";
+import {
+  getUserById,
+  getTasks,
+  createTask,
+  initDB,
+  isGroupMember,
+  isGroupAdmin,
+  canCreateTasksInGroup,
+} from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { ApiResponse, Task } from "@/types";
@@ -86,6 +94,15 @@ export async function POST(request: NextRequest) {
     const isMember = await isGroupMember(group_id, user.id);
     if (!isMember) {
       return NextResponse.json({ success: false, message: "Bu gruba üye değilsiniz", data: null }, { status: 403 });
+    }
+
+    // Check if the user has permission to create tasks
+    const canCreateTasks = await canCreateTasksInGroup(group_id, user.id);
+    if (!canCreateTasks) {
+      return NextResponse.json(
+        { success: false, message: "Bu grupta görev oluşturma yetkiniz yok", data: null },
+        { status: 403 }
+      );
     }
 
     const newTask = await createTask({

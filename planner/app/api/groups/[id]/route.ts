@@ -78,7 +78,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Get request body
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, members_can_create_tasks } = body;
 
     // Validate required fields
     if (!name) {
@@ -86,7 +86,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Update the group
-    const updatedGroup = await updateGroup(groupId, { name, description });
+    const updatedGroup = await updateGroup(groupId, {
+      name,
+      description,
+      members_can_create_tasks,
+    });
 
     if (!updatedGroup) {
       return NextResponse.json(

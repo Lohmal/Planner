@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
 
     // Get request body
     const body = await request.json();
-    const { name, description } = body;
+    const { name, description, members_can_create_tasks } = body;
 
     // Validate required fields
     if (!name) {
@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
       name,
       description,
       creator_id: Number(userId.value),
+      members_can_create_tasks,
     });
 
     if (!newGroup) {

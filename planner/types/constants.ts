@@ -48,6 +48,7 @@ export const ROUTES = {
   GROUP_MEMBERS: (id: string | number) => `/groups/${id}/members`,
   GROUP_INVITE: (id: string | number) => `/groups/${id}/invite`,
   TASKS: "/tasks",
+  TASK_CREATE: "/tasks/create",
   TASK_DETAIL: (id: string | number) => `/tasks/${id}`,
   TASK_EDIT: (id: string | number) => `/tasks/${id}/edit`,
 

@@ -19,6 +19,7 @@ export default function GroupMembersPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
+  const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!groupId || !user) return;
@@ -128,6 +129,44 @@ export default function GroupMembersPage() {
     }
   };
 
+  const handleRoleChange = async (userId: number, newRole: string) => {
+    if (
+      !confirm(
+        newRole === "admin"
+          ? "Bu kullanıcıyı yönetici yapmak istediğinizden emin misiniz? Yöneticiler grup ayarlarını değiştirebilir ve diğer üyeleri yönetebilirler."
+          : "Bu kullanıcının yönetici yetkilerini kaldırmak istediğinizden emin misiniz?"
+      )
+    ) {
+      return;
+    }
+
+    setChangingRoleUserId(userId.toString());
+
+    try {
+      const response = await fetch(`/api/groups/${groupId}/members/${userId}/role`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Kullanıcı rolü değiştirilirken bir hata oluştu");
+      }
+
+      // Update the members list
+      setMembers(members.map((member) => (member.user_id === userId ? { ...member, role: newRole } : member)));
+    } catch (error) {
+      console.error("Error changing role:", error);
+      alert(error instanceof Error ? error.message : "Kullanıcı rolü değiştirilirken bir hata oluştu");
+    } finally {
+      setChangingRoleUserId(null);
+    }
+  };
+
   // ...existing loading and error states...
 
   return (
@@ -203,20 +242,60 @@ export default function GroupMembersPage() {
                   </div>
                 </div>
 
-                {/* Remove member button - only for admins and not themselves */}
-                {isAdmin && user && member.user_id !== Number(user.id) && (
-                  <button
-                    onClick={() => handleRemoveMember(member.user_id)}
-                    className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="Üyeyi çıkar"
-                    disabled={removingUserId === member.user_id.toString()}
-                  >
-                    {removingUserId === member.user_id.toString() ? (
-                      <span className="animate-spin inline-block h-5 w-5 border-2 border-t-red-500 border-red-200 rounded-full"></span>
-                    ) : (
-                      <X className="h-5 w-5" />
+                {/* Action buttons */}
+                {isAdmin && user && (
+                  <div className="flex items-center space-x-2">
+                    {/* Role change button - only show for other members */}
+                    {member.user_id !== Number(user.id) && (
+                      <button
+                        onClick={() => handleRoleChange(member.user_id, member.role === "admin" ? "member" : "admin")}
+                        className={`
+                          text-sm px-3 py-1 rounded-md 
+                          ${
+                            member.role === "admin"
+                              ? "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                              : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-800/40"
+                          }
+                        `}
+                        disabled={!!changingRoleUserId}
+                        title={member.role === "admin" ? "Yönetici yetkisini kaldır" : "Yönetici yap"}
+                      >
+                        {changingRoleUserId === member.user_id.toString() ? (
+                          <span className="inline-block animate-spin h-4 w-4 border-2 border-t-current border-current border-opacity-20 rounded-full"></span>
+                        ) : (
+                          <>
+                            {member.role === "admin" ? (
+                              <>
+                                <Shield className="h-3 w-3 inline mr-1" />
+                                Yetkiyi Kaldır
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="h-3 w-3 inline mr-1" />
+                                Yönetici Yap
+                              </>
+                            )}
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
+
+                    {/* Remove member button - not for themselves */}
+                    {member.user_id !== Number(user.id) && (
+                      <button
+                        onClick={() => handleRemoveMember(member.user_id)}
+                        className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+                        title="Üyeyi çıkar"
+                        disabled={!!removingUserId}
+                      >
+                        {removingUserId === member.user_id.toString() ? (
+                          <span className="animate-spin inline-block h-5 w-5 border-2 border-t-red-500 border-red-200 rounded-full"></span>
+                        ) : (
+                          <X className="h-5 w-5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
                 )}
               </li>
             ))}

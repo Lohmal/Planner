@@ -55,12 +55,12 @@ function getPriorityLabel(priority: string) {
   }
 }
 
-export default function GroupTasks({ tasks }: { tasks: Task[] }) {
+export default function GroupTasks({ tasks, groupId }: { tasks: Task[]; groupId?: string | number }) {
   if (tasks.length === 0) {
     return (
       <div className="text-center text-gray-500 dark:text-gray-400 py-8">
         <p className="mb-4">Bu grupta henüz görev bulunmamaktadır.</p>
-        <Link href={`${ROUTES.TASK_CREATE}`} className="btn btn-primary">
+        <Link href={groupId ? ROUTES.GROUP_TASKS_CREATE(groupId) : ROUTES.TASK_CREATE} className="btn btn-primary">
           Görev Oluştur
         </Link>
       </div>
@@ -73,7 +73,7 @@ export default function GroupTasks({ tasks }: { tasks: Task[] }) {
         <Link
           key={task.id}
           href={ROUTES.TASK_DETAIL(task.id)}
-          className="block py-4 hover:bg-gray-50 dark:hover:bg-gray-700"
+          className="block py-4 hover:bg-gray-50 dark:hover:bg-gray-700 p-4 rounded-xs "
         >
           <div className="flex justify-between mb-2">
             <h3 className="font-medium">{task.title}</h3>

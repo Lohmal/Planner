@@ -119,6 +119,20 @@ export async function getDB() {
     console.log("Added subgroup_id column to tasks table");
   }
 
+  // Check if members_can_create_tasks column exists in groups table and add it if it doesn't
+  const groupsTableInfo = await db.all("PRAGMA table_info(groups)");
+  const hasTaskPermission = groupsTableInfo.some(
+    (column: { name: string }) => column.name === "members_can_create_tasks"
+  );
+
+  if (!hasTaskPermission) {
+    // Add members_can_create_tasks column to groups table
+    await db.exec(`
+      ALTER TABLE groups ADD COLUMN members_can_create_tasks INTEGER DEFAULT 0
+    `);
+    console.log("Added members_can_create_tasks column to groups table");
+  }
+
   // Bildirimler tablosu
   await db.exec(`
     CREATE TABLE IF NOT EXISTS notifications (
@@ -180,6 +194,20 @@ export async function initDB() {
       ALTER TABLE tasks ADD COLUMN subgroup_id INTEGER DEFAULT NULL REFERENCES subgroups(id) ON DELETE SET NULL
     `);
     console.log("Added subgroup_id column to tasks table");
+  }
+
+  // Check if members_can_create_tasks column exists in groups table and add it if it doesn't
+  const groupsTableInfo = await db.all("PRAGMA table_info(groups)");
+  const hasTaskPermission = groupsTableInfo.some(
+    (column: { name: string }) => column.name === "members_can_create_tasks"
+  );
+
+  if (!hasTaskPermission) {
+    // Add members_can_create_tasks column to groups table
+    await db.exec(`
+      ALTER TABLE groups ADD COLUMN members_can_create_tasks INTEGER DEFAULT 0
+    `);
+    console.log("Added members_can_create_tasks column to groups table");
   }
 
   return db;
@@ -264,6 +292,7 @@ export async function createGroup(group: {
   name: string;
   description?: string;
   creator_id: number;
+  members_can_create_tasks?: boolean;
 }): Promise<Group | null> {
   const db = await getDB();
 
@@ -271,11 +300,15 @@ export async function createGroup(group: {
     // Start a transaction to ensure atomicity
     await db.exec("BEGIN TRANSACTION");
 
-    const result = await db.run("INSERT INTO groups (name, description, creator_id) VALUES (?, ?, ?)", [
-      group.name,
-      group.description || null,
-      group.creator_id,
-    ]);
+    const result = await db.run(
+      "INSERT INTO groups (name, description, creator_id, members_can_create_tasks) VALUES (?, ?, ?, ?)",
+      [
+        group.name,
+        group.description || null,
+        group.creator_id,
+        group.members_can_create_tasks ? 1 : 0, // Convert boolean to 0/1 for SQLite
+      ]
+    );
 
     // Oluşturan kişiyi admin olarak gruba ekleyelim
     if (result.lastID) {
@@ -300,11 +333,19 @@ export async function createGroup(group: {
 
 export async function updateGroup(
   id: number | string,
-  group: { name: string; description?: string }
+  group: { name: string; description?: string; members_can_create_tasks?: boolean }
 ): Promise<Group | null> {
   const db = await getDB();
 
-  await db.run("UPDATE groups SET name = ?, description = ? WHERE id = ?", [group.name, group.description || null, id]);
+  await db.run(
+    "UPDATE groups SET name = ?, description = ?, members_can_create_tasks = ? WHERE id = ?",
+    [
+      group.name,
+      group.description || null,
+      group.members_can_create_tasks !== undefined ? (group.members_can_create_tasks ? 1 : 0) : null,
+      id,
+    ]
+  );
 
   return getGroupById(id);
 }
@@ -1137,4 +1178,40 @@ export async function removeGroupMemberAndCleanup(
     console.error("Error removing group member:", error);
     return false;
   }
+}
+
+// Add a new function to update member role
+export async function updateGroupMemberRole(
+  groupId: number | string,
+  userId: number | string,
+  role: string
+): Promise<boolean> {
+  const db = await getDB();
+  try {
+    const result = await db.run(
+      "UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?",
+      [role, groupId, userId]
+    );
+    return result.changes > 0;
+  } catch (error) {
+    console.error("Grup üyesi rolü güncellenirken hata:", error);
+    return false;
+  }
+}
+
+// Add a function to check if a user can create tasks in a group
+export async function canCreateTasksInGroup(groupId: number | string, userId: number | string): Promise<boolean> {
+  const db = await getDB();
+  
+  // First check if user is an admin
+  const isAdmin = await isGroupAdmin(groupId, userId);
+  if (isAdmin) return true;
+  
+  // If not admin, check if the group allows members to create tasks
+  const group = await db.get(
+    "SELECT members_can_create_tasks FROM groups WHERE id = ?",
+    [groupId]
+  );
+  
+  return group && group.members_can_create_tasks === 1;
 }

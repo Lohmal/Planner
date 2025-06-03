@@ -108,10 +108,33 @@ export default function Navbar() {
       });
 
       if (res.ok) {
-        // Davetleri güncelle
+        // Remove this invitation from the list immediately
         setInvitations(invitations.filter((inv) => inv.id !== id));
-        // Bildirimleri de güncelle
-        fetchNotifications();
+
+        // Show feedback message based on response type
+        const message = response === "accepted" ? "Grup davetini kabul ettiniz" : "Grup davetini reddettiniz";
+
+        // Create a temporary success notification
+        const tempNotification = {
+          id: `temp-${Date.now()}`,
+          title: message,
+          message:
+            response === "accepted"
+              ? "Gruba başarıyla katıldınız. Gruplar sayfasından gruba erişebilirsiniz."
+              : "Grup daveti reddedildi.",
+          type: response === "accepted" ? "group_member_joined" : "info",
+          is_read: 0,
+          created_at: new Date().toISOString(),
+        };
+
+        // Add the temporary notification to show feedback
+        setNotifications([tempNotification, ...notifications]);
+
+        // Close notification panel if needed
+        if (response === "accepted") {
+          // Fetch latest notifications to reflect changes
+          fetchNotifications();
+        }
       }
     } catch (error) {
       console.error("Davet yanıtı gönderilirken hata:", error);
@@ -184,7 +207,7 @@ export default function Navbar() {
     try {
       // Prevent the click from propagating to parent elements
       setIsDeletingNotification(notificationId);
-      
+
       const response = await fetch(`/api/notifications/${notificationId}`, {
         method: "DELETE",
       });
@@ -193,12 +216,12 @@ export default function Navbar() {
 
       if (response.ok && data.success) {
         // Remove the notification from the list
-        setNotifications(notifications.filter(notification => notification.id !== notificationId));
-        
+        setNotifications(notifications.filter((notification) => notification.id !== notificationId));
+
         // Update unread count if it was an unread notification
-        const deletedNotification = notifications.find(n => n.id === notificationId);
+        const deletedNotification = notifications.find((n) => n.id === notificationId);
         if (deletedNotification && deletedNotification.is_read === 0) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
+          setUnreadCount((prev) => Math.max(0, prev - 1));
         }
       } else {
         // Show error in console with the actual error message from server

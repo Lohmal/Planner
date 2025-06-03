@@ -23,6 +23,7 @@ export default function EditGroupPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [subgroups, setSubgroups] = useState<any[]>([]);
+  const [membersCanCreateTasks, setMembersCanCreateTasks] = useState(false);
 
   const {
     register,
@@ -65,6 +66,9 @@ export default function EditGroupPage() {
           name: groupData.name,
           description: groupData.description || "",
         });
+
+        // Set the members_can_create_tasks state
+        setMembersCanCreateTasks(!!groupData.members_can_create_tasks);
 
         // Load subgroups
         await loadSubgroups();
@@ -115,7 +119,10 @@ export default function EditGroupPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          members_can_create_tasks: membersCanCreateTasks,
+        }),
       });
 
       const responseData = await response.json();
@@ -238,6 +245,31 @@ export default function EditGroupPage() {
                 placeholder="Grup açıklaması"
                 disabled={isSubmitting}
               />
+            </div>
+
+            <div className="flex items-center">
+              <input
+                id="members_can_create_tasks"
+                type="checkbox"
+                className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                checked={membersCanCreateTasks}
+                onChange={(e) => setMembersCanCreateTasks(e.target.checked)}
+                disabled={isSubmitting}
+              />
+              <label htmlFor="members_can_create_tasks" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                Üyelerin görev oluşturmasına izin ver
+              </label>
+              <div className="ml-2 text-gray-500 dark:text-gray-400">
+                <span title="Bu seçenek işaretlenmezse, sadece grup yöneticileri görev oluşturabilir.">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </span>
+              </div>
             </div>
 
             <div className="flex justify-end">
