@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ROUTES } from "@/types/constants";
 import Link from "next/link";
 import { Group } from "@/types";
+import { Archive } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -50,16 +51,22 @@ export default async function GroupsPage() {
           <h1 className="text-3xl font-bold">Gruplarım</h1>
           <p className="text-gray-600 dark:text-gray-300 mt-1">Üyesi olduğunuz gruplar ve içeriklerini yönetin</p>
         </div>
-        <Link href={ROUTES.GROUP_CREATE} className="btn btn-primary flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-              clipRule="evenodd"
-            />
-          </svg>
-          Yeni Grup Oluştur
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href={ROUTES.GROUPS_ARCHIVED} className="btn btn-outline flex items-center gap-2">
+            <Archive className="h-5 w-5" />
+            Arşivlenmiş Gruplar
+          </Link>
+          <Link href={ROUTES.GROUP_CREATE} className="btn btn-primary flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Yeni Grup Oluştur
+          </Link>
+        </div>
       </div>
 
       {groups.length === 0 ? (

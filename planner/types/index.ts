@@ -21,6 +21,7 @@ export type Group = {
   creator_id: number;
   created_at?: string;
   members_can_create_tasks?: boolean; // New flag to control if regular members can create tasks
+  is_archived?: boolean; // Flag to indicate if the group is archived
   // İlişkisel veri
   creator?: User;
   member_count?: number;
@@ -51,6 +52,7 @@ export type Subgroup = {
   group_id: number;
   creator_id: number;
   created_at?: string;
+  is_archived?: boolean; // Flag to indicate if the subgroup is archived
   // İlişkisel veri
   creator_username?: string;
   creator_full_name?: string;

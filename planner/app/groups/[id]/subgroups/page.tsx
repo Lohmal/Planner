@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ROUTES } from "@/types/constants";
 import Link from "next/link";
+import { Archive } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,13 @@ export default async function SubgroupsPage({ params }: { params: { id: string }
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="text-3xl font-bold">Alt Gruplar</h1>
         <div className="flex gap-2">
+          <Link
+            href={`/groups/${group.id}/subgroups/archived`}
+            className="btn bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 flex items-center gap-2"
+          >
+            <Archive className="h-4 w-4" />
+            Arşivlenmiş Alt Gruplar
+          </Link>
           <Link
             href={ROUTES.GROUP_DETAIL(group.id)}
             className="btn bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"

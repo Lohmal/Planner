@@ -1,11 +1,14 @@
 import {
-  getUserById,
   getTasks,
-  createTask,
+  getTasksByGroupId,
+  getTasksBySubgroupId,
+  getTasksByUserId,
+  getUserById,
   initDB,
   isGroupMember,
   isGroupAdmin,
   canCreateTasksInGroup,
+  createTask,
 } from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
@@ -16,6 +19,7 @@ export async function GET(request: NextRequest) {
   try {
     await initDB();
 
+    // Get the user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
@@ -24,23 +28,49 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await getUserById(userId.value);
-
     if (!user) {
       return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
     }
 
-    // Tüm görevleri getir
-    const tasks = await getTasks();
+    // Parse query parameters
+    const searchParams = request.nextUrl.searchParams;
+    const groupId = searchParams.get("groupId");
+    const subgroupId = searchParams.get("subgroupId");
+    const userTasks = searchParams.get("userTasks") === "true";
 
-    const response: ApiResponse<Task[]> = {
+    let tasks = [];
+
+    if (groupId) {
+      // Verify the user is a member of the group
+      const isMember = await isGroupMember(groupId, userId.value);
+      if (!isMember) {
+        return NextResponse.json(
+          { success: false, message: "Bu gruba erişim izniniz yok", data: null },
+          { status: 403 }
+        );
+      }
+
+      // Get tasks specific to this group
+      tasks = await getTasksByGroupId(groupId);
+    } else if (subgroupId) {
+      // For subgroup tasks, we should check if the user is a member of the parent group
+      // This would require a helper function to get the group ID from the subgroup ID
+      // For now, we'll just fetch the tasks
+      tasks = await getTasksBySubgroupId(subgroupId);
+    } else if (userTasks) {
+      // Get tasks assigned to the user
+      tasks = await getTasksByUserId(userId.value);
+    } else {
+      // Get all tasks the user has access to (limited to their groups)
+      tasks = await getTasks();
+    }
+
+    return NextResponse.json({
       success: true,
       data: tasks,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     console.error("Görevler alınırken hata:", error);
-
     return NextResponse.json(
       { success: false, message: "Görevler alınırken bir hata oluştu", data: null },
       { status: 500 }

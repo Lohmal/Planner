@@ -8,7 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     await initDB();
 
-    // Get the logged-in user ID from cookies
+    // Get the user ID from cookies
     const cookieStore = await cookies();
     const userId = cookieStore.get("userId");
 
@@ -16,30 +16,46 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: false, message: "Yetkilendirme başarısız", data: null }, { status: 401 });
     }
 
-    // Resolve params
+    const user = await getUserById(userId.value);
+    if (!user) {
+      return NextResponse.json({ success: false, message: "Kullanıcı bulunamadı", data: null }, { status: 401 });
+    }
+
+    // Get the group ID from params
     const resolvedParams = await params;
     const groupId = resolvedParams.id;
 
     // Check if the user is a member of the group
     const isMember = await isGroupMember(groupId, userId.value);
-
     if (!isMember) {
       return NextResponse.json({ success: false, message: "Bu gruba erişim izniniz yok", data: null }, { status: 403 });
     }
 
-    // Get group data
+    // Get group details
     const group = await getGroupById(groupId);
 
     if (!group) {
       return NextResponse.json({ success: false, message: "Grup bulunamadı", data: null }, { status: 404 });
     }
 
-    const response: ApiResponse<Group> = {
-      success: true,
-      data: group,
-    };
+    // Fetch the creator information
+    const creator = await getUserById(group.creator_id);
 
-    return NextResponse.json(response);
+    // Include creator info in the response
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...group,
+        // Make sure numeric fields are properly converted
+        id: Number(group.id),
+        creator_id: Number(group.creator_id),
+        members_can_create_tasks: Boolean(group.members_can_create_tasks),
+        is_archived: Boolean(group.is_archived),
+        // Add creator info
+        creator_username: creator?.username,
+        creator_full_name: creator?.full_name,
+      },
+    });
   } catch (error) {
     console.error("Grup bilgileri alınırken hata:", error);
     return NextResponse.json(

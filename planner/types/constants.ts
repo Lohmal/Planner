@@ -60,6 +60,10 @@ export const ROUTES = {
   // Add a route for creating tasks within a subgroup context
   SUBGROUP_TASKS_CREATE: (groupId: string | number, subgroupId: string | number) =>
     `/groups/${groupId}/tasks/create?subgroupId=${subgroupId}`,
+
+  // New routes for archived groups and subgroups
+  GROUPS_ARCHIVED: "/groups/archived",
+  SUBGROUPS_ARCHIVED: (groupId: number | string) => `/groups/${groupId}/subgroups/archived`,
 };
 
 /**

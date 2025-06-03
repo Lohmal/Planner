@@ -7,7 +7,7 @@ import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
 import GroupMembers from "@/components/groups/GroupMembers";
 import GroupTasks from "@/components/groups/GroupTasks";
-import { Folders, PlusCircle, CircleChevronRight } from "lucide-react";
+import { Folders, PlusCircle, CircleChevronRight, Archive } from "lucide-react";
 
 export default function GroupDetailPage() {
   const router = useRouter();
@@ -22,6 +22,7 @@ export default function GroupDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   // Fetch data function
   const fetchData = async () => {
@@ -43,6 +44,7 @@ export default function GroupDetailPage() {
       }
 
       const fetchedGroup = groupData.data;
+
       setGroup(fetchedGroup);
 
       // Check if current user is creator of the group
@@ -88,7 +90,6 @@ export default function GroupDetailPage() {
 
   const fetchGroupTasks = async (gid: string) => {
     try {
-      // Fix: Use a proper API endpoint for group tasks
       const tasksResponse = await fetch(`/api/tasks?groupId=${gid}`);
 
       if (!tasksResponse.ok) {
@@ -101,9 +102,15 @@ export default function GroupDetailPage() {
         throw new Error(tasksData.message || "Görevler alınamadı");
       }
 
-      setTasks(tasksData.data || []);
+      const filteredTasks = (tasksData.data || []).filter(
+        (task: any) => task.group_id === parseInt(gid, 10) || task.group_id === gid
+      );
+
+      setTasks(filteredTasks);
     } catch (error) {
       console.error("Tasks fetch error:", error);
+      // Set empty array on error
+      setTasks([]);
     }
   };
 
@@ -124,8 +131,46 @@ export default function GroupDetailPage() {
       setSubgroups(subgroupsData.data || []);
     } catch (error) {
       console.error("Subgroups fetch error:", error);
-      // Just use empty array for subgroups if there's an error
+
       setSubgroups([]);
+    }
+  };
+
+  const handleArchiveGroup = async () => {
+    if (
+      !confirm(
+        group?.is_archived
+          ? "Bu grubu arşivden çıkarmak istediğinizden emin misiniz?"
+          : "Bu grubu arşivlemek istediğinizden emin misiniz?"
+      )
+    ) {
+      return;
+    }
+
+    setIsArchiving(true);
+
+    try {
+      const response = await fetch(`/api/groups/${groupId}/archive`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ archive: !group?.is_archived }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Grup arşivleme işlemi sırasında bir hata oluştu");
+      }
+
+      // Refresh the page to show the updated status
+      fetchData();
+    } catch (error) {
+      console.error("Grup arşivleme hatası:", error);
+      alert(error instanceof Error ? error.message : "Grup arşivleme işlemi sırasında bir hata oluştu");
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -140,15 +185,32 @@ export default function GroupDetailPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-3xl font-bold">{group?.name || "Grup Detayları"}</h1>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-3xl font-bold">{group?.name}</h1>
+            {group?.is_archived && (
+              <span className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-2 py-1 rounded text-xs font-medium">
+                Arşivlenmiş
+              </span>
+            )}
+          </div>
           {group?.description && <p className="text-gray-600 dark:text-gray-300">{group.description}</p>}
         </div>
 
         <div className="flex gap-2">
           {isAdmin && (
-            <Link href={`/groups/${group.id}/edit`} className="btn btn-primary">
-              Grubu Düzenle
-            </Link>
+            <>
+              <button
+                onClick={handleArchiveGroup}
+                disabled={isArchiving}
+                className="btn btn-outline flex items-center gap-2"
+              >
+                <Archive className="h-4 w-4" />
+                {isArchiving ? "İşleniyor..." : group?.is_archived ? "Arşivden Çıkar" : "Arşivle"}
+              </button>
+              <Link href={`/groups/${group.id}/edit`} className="btn btn-primary">
+                Grubu Düzenle
+              </Link>
+            </>
           )}
         </div>
       </div>
@@ -159,6 +221,7 @@ export default function GroupDetailPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <h3 className="font-medium">Grup Adı</h3>
+
             <p className="text-gray-700 dark:text-gray-300">{group?.name}</p>
           </div>
           <div>
@@ -242,13 +305,10 @@ export default function GroupDetailPage() {
             {/* User icon */}
             Üyeler ({members.length})
           </h2>
-            <Link
-            href={`/groups/${groupId}/members`}
-            className="btn btn-sm btn-primary flex items-center"
-            >
+          <Link href={`/groups/${groupId}/members`} className="btn btn-sm btn-primary flex items-center">
             <CircleChevronRight className="h-4 w-4 mr-2" />
             Tümünü Gör
-            </Link>
+          </Link>
         </div>
 
         {user ? (

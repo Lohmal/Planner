@@ -5,7 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/lib/authContext";
 import { API_ENDPOINTS, ROUTES } from "@/types/constants";
 import Link from "next/link";
-import { Edit, ArrowLeft, ListTodo, Info } from "lucide-react";
+import { Edit, ArrowLeft, ListTodo, Info, Archive } from "lucide-react";
 
 export default function SubgroupDetailPage() {
   const router = useRouter();
@@ -23,80 +23,120 @@ export default function SubgroupDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isCreator, setIsCreator] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
+  // Define fetchData function first
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch group data
+      const groupResponse = await fetch(API_ENDPOINTS.GROUP_DETAIL(groupId));
+      if (groupResponse.ok) {
+        const groupData = await groupResponse.json();
+        if (groupData.success && groupData.data) {
+          setGroupName(groupData.data.name);
+        }
+      }
+
+      // Fetch subgroup data
+      const subgroupResponse = await fetch(`/api/subgroups/${subgroupId}`);
+      if (!subgroupResponse.ok) {
+        throw new Error("Alt grup bilgileri alınamadı");
+      }
+
+      const subgroupData = await subgroupResponse.json();
+      if (!subgroupData.success || !subgroupData.data) {
+        throw new Error(subgroupData.message || "Alt grup bulunamadı");
+      }
+
+      const fetchedSubgroup = subgroupData.data;
+      setSubgroup(fetchedSubgroup);
+
+      // Check if user is creator or admin - Fix null check for user
+      if (user) {
+        setIsCreator(fetchedSubgroup.creator_id === Number(user.id));
+      }
+
+      // Fetch tasks for this subgroup
+      try {
+        const tasksResponse = await fetch(`/api/tasks?subgroupId=${subgroupId}`);
+        if (tasksResponse.ok) {
+          const tasksData = await tasksResponse.json();
+          if (tasksData.success) {
+            setTasks(tasksData.data || []);
+          }
+        }
+      } catch (taskError) {
+        console.error("Görevler alınırken hata:", taskError);
+        setTasks([]);
+      }
+
+      // Check if user is admin - Fix null check for user
+      try {
+        const membersResponse = await fetch(API_ENDPOINTS.GROUP_MEMBERS(groupId));
+        if (membersResponse.ok) {
+          const membersData = await membersResponse.json();
+          if (membersData.success && user) {
+            const currentMember = membersData.data.find((m: any) => m.user_id === Number(user.id));
+            setIsAdmin(currentMember?.role === "admin");
+          }
+        }
+      } catch (memberError) {
+        console.error("Üye bilgileri alınırken hata:", memberError);
+      }
+    } catch (error) {
+      console.error("Alt grup bilgileri alınırken hata:", error);
+      setError(error instanceof Error ? error.message : "Alt grup bilgileri alınırken bir hata oluştu");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Use fetchData in useEffect
   useEffect(() => {
     if (!groupId || !subgroupId || !user) return;
-
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch group data
-        const groupResponse = await fetch(API_ENDPOINTS.GROUP_DETAIL(groupId));
-        if (groupResponse.ok) {
-          const groupData = await groupResponse.json();
-          if (groupData.success && groupData.data) {
-            setGroupName(groupData.data.name);
-          }
-        }
-
-        // Fetch subgroup data
-        const subgroupResponse = await fetch(`/api/subgroups/${subgroupId}`);
-        if (!subgroupResponse.ok) {
-          throw new Error("Alt grup bilgileri alınamadı");
-        }
-
-        const subgroupData = await subgroupResponse.json();
-        if (!subgroupData.success || !subgroupData.data) {
-          throw new Error(subgroupData.message || "Alt grup bulunamadı");
-        }
-
-        const fetchedSubgroup = subgroupData.data;
-        setSubgroup(fetchedSubgroup);
-
-        // Check if user is creator or admin - Fix null check for user
-        if (user) {
-          setIsCreator(fetchedSubgroup.creator_id === Number(user.id));
-        }
-
-        // Fetch tasks for this subgroup
-        try {
-          const tasksResponse = await fetch(`/api/tasks?subgroupId=${subgroupId}`);
-          if (tasksResponse.ok) {
-            const tasksData = await tasksResponse.json();
-            if (tasksData.success) {
-              setTasks(tasksData.data || []);
-            }
-          }
-        } catch (taskError) {
-          console.error("Görevler alınırken hata:", taskError);
-          setTasks([]);
-        }
-
-        // Check if user is admin - Fix null check for user
-        try {
-          const membersResponse = await fetch(API_ENDPOINTS.GROUP_MEMBERS(groupId));
-          if (membersResponse.ok) {
-            const membersData = await membersResponse.json();
-            if (membersData.success && user) {
-              const currentMember = membersData.data.find((m: any) => m.user_id === Number(user.id));
-              setIsAdmin(currentMember?.role === "admin");
-            }
-          }
-        } catch (memberError) {
-          console.error("Üye bilgileri alınırken hata:", memberError);
-        }
-      } catch (error) {
-        console.error("Alt grup bilgileri alınırken hata:", error);
-        setError(error instanceof Error ? error.message : "Alt grup bilgileri alınırken bir hata oluştu");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchData();
   }, [groupId, subgroupId, user]);
+
+  const handleArchiveSubgroup = async () => {
+    if (
+      !confirm(
+        subgroup?.is_archived
+          ? "Bu alt grubu arşivden çıkarmak istediğinizden emin misiniz?"
+          : "Bu alt grubu arşivlemek istediğinizden emin misiniz?"
+      )
+    ) {
+      return;
+    }
+
+    setIsArchiving(true);
+
+    try {
+      const response = await fetch(`/api/subgroups/${subgroupId}/archive`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ archive: !subgroup?.is_archived }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Alt grup arşivleme işlemi sırasında bir hata oluştu");
+      }
+
+      // Refresh the data
+      fetchData();
+    } catch (error) {
+      console.error("Alt grup arşivleme hatası:", error);
+      alert(error instanceof Error ? error.message : "Alt grup arşivleme işlemi sırasında bir hata oluştu");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -154,18 +194,35 @@ export default function SubgroupDetailPage() {
     <div className="max-w-4xl mx-auto">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold">{subgroup.name}</h1>
+          <div className="flex items-center space-x-2">
+            <h1 className="text-3xl font-bold">{subgroup.name}</h1>
+            {subgroup.is_archived && (
+              <span className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 px-2 py-1 rounded text-xs font-medium">
+                Arşivlenmiş
+              </span>
+            )}
+          </div>
           {groupName && <p className="text-gray-600 dark:text-gray-300">{groupName} grubu içinde</p>}
         </div>
         <div className="flex gap-2">
           {(isAdmin || isCreator) && (
-            <Link
-              href={`/groups/${groupId}/subgroups/${subgroupId}/edit`}
-              className="btn btn-primary flex items-center"
-            >
-              <Edit className="h-4 w-4 mr-2" />
-              Düzenle
-            </Link>
+            <>
+              <button
+                onClick={handleArchiveSubgroup}
+                disabled={isArchiving}
+                className="btn btn-outline flex items-center"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                {isArchiving ? "İşleniyor..." : subgroup.is_archived ? "Arşivden Çıkar" : "Arşivle"}
+              </button>
+              <Link
+                href={`/groups/${groupId}/subgroups/${subgroupId}/edit`}
+                className="btn btn-primary flex items-center"
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Düzenle
+              </Link>
+            </>
           )}
           <Link href={`/groups/${groupId}/subgroups`} className="btn btn-outline flex items-center">
             <ArrowLeft className="h-4 w-4 mr-2" />

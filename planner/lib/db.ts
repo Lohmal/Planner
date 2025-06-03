@@ -133,6 +133,29 @@ export async function getDB() {
     console.log("Added members_can_create_tasks column to groups table");
   }
 
+  // Check if is_archived column exists in groups table and add it if it doesn't
+  const hasGroupArchived = groupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
+
+  if (!hasGroupArchived) {
+    // Add is_archived column to groups table
+    await db.exec(`
+      ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0
+    `);
+    console.log("Added is_archived column to groups table");
+  }
+
+  // Check if is_archived column exists in subgroups table and add it if it doesn't
+  const subgroupsTableInfo = await db.all("PRAGMA table_info(subgroups)");
+  const hasSubgroupArchived = subgroupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
+
+  if (!hasSubgroupArchived) {
+    // Add is_archived column to subgroups table
+    await db.exec(`
+      ALTER TABLE subgroups ADD COLUMN is_archived INTEGER DEFAULT 0
+    `);
+    console.log("Added is_archived column to subgroups table");
+  }
+
   // Bildirimler tablosu
   await db.exec(`
     CREATE TABLE IF NOT EXISTS notifications (
@@ -210,6 +233,29 @@ export async function initDB() {
     console.log("Added members_can_create_tasks column to groups table");
   }
 
+  // Check if is_archived column exists in groups table and add it if it doesn't
+  const hasGroupArchived = groupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
+
+  if (!hasGroupArchived) {
+    // Add is_archived column to groups table
+    await db.exec(`
+      ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0
+    `);
+    console.log("Added is_archived column to groups table");
+  }
+
+  // Check if is_archived column exists in subgroups table and add it if it doesn't
+  const subgroupsTableInfo = await db.all("PRAGMA table_info(subgroups)");
+  const hasSubgroupArchived = subgroupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
+
+  if (!hasSubgroupArchived) {
+    // Add is_archived column to subgroups table
+    await db.exec(`
+      ALTER TABLE subgroups ADD COLUMN is_archived INTEGER DEFAULT 0
+    `);
+    console.log("Added is_archived column to subgroups table");
+  }
+
   return db;
 }
 
@@ -264,24 +310,61 @@ export async function authenticateUser(email: string, password: string): Promise
 }
 
 // Grup işlemleri
-export async function getGroups(): Promise<Group[]> {
+export async function getGroups(includeArchived: boolean = false): Promise<Group[]> {
   const db = await getDB();
-  return db.all("SELECT * FROM groups ORDER BY created_at DESC");
+
+  const query = includeArchived
+    ? "SELECT * FROM groups ORDER BY created_at DESC"
+    : "SELECT * FROM groups WHERE is_archived = 0 OR is_archived IS NULL ORDER BY created_at DESC";
+
+  return db.all(query);
 }
 
 export async function getGroupById(id: number | string): Promise<Group | null> {
   const db = await getDB();
-  return db.get("SELECT * FROM groups WHERE id = ?", [id]);
+
+  // Update the query to include creator information
+  return db.get(
+    `
+    SELECT g.*, u.username as creator_username, u.full_name as creator_full_name
+    FROM groups g
+    JOIN users u ON g.creator_id = u.id
+    WHERE g.id = ?
+  `,
+    [id]
+  );
 }
 
-export async function getGroupsByUserId(userId: number | string): Promise<Group[]> {
+export async function getGroupsByUserId(userId: number | string, includeArchived: boolean = false): Promise<Group[]> {
+  const db = await getDB();
+
+  const query = includeArchived
+    ? `
+      SELECT g.* 
+      FROM groups g
+      JOIN group_members gm ON g.id = gm.group_id
+      WHERE gm.user_id = ?
+      ORDER BY g.created_at DESC
+    `
+    : `
+      SELECT g.* 
+      FROM groups g
+      JOIN group_members gm ON g.id = gm.group_id
+      WHERE gm.user_id = ? AND (g.is_archived = 0 OR g.is_archived IS NULL)
+      ORDER BY g.created_at DESC
+    `;
+
+  return db.all(query, [userId]);
+}
+
+export async function getArchivedGroupsByUserId(userId: number | string): Promise<Group[]> {
   const db = await getDB();
   return db.all(
     `
     SELECT g.* 
     FROM groups g
     JOIN group_members gm ON g.id = gm.group_id
-    WHERE gm.user_id = ?
+    WHERE gm.user_id = ? AND g.is_archived = 1
     ORDER BY g.created_at DESC
   `,
     [userId]
@@ -333,19 +416,46 @@ export async function createGroup(group: {
 
 export async function updateGroup(
   id: number | string,
-  group: { name: string; description?: string; members_can_create_tasks?: boolean }
+  group: { name: string; description?: string; members_can_create_tasks?: boolean; is_archived?: boolean }
 ): Promise<Group | null> {
   const db = await getDB();
 
-  await db.run(
-    "UPDATE groups SET name = ?, description = ?, members_can_create_tasks = ? WHERE id = ?",
-    [
-      group.name,
-      group.description || null,
-      group.members_can_create_tasks !== undefined ? (group.members_can_create_tasks ? 1 : 0) : null,
-      id,
-    ]
-  );
+  const currentGroup = await getGroupById(id);
+  if (!currentGroup) return null;
+
+  // Prepare the update fields and values
+  const fields = [];
+  const values = [];
+
+  if (group.name !== undefined) {
+    fields.push("name = ?");
+    values.push(group.name);
+  }
+
+  if (group.description !== undefined) {
+    fields.push("description = ?");
+    values.push(group.description || null);
+  }
+
+  if (group.members_can_create_tasks !== undefined) {
+    fields.push("members_can_create_tasks = ?");
+    values.push(group.members_can_create_tasks ? 1 : 0);
+  }
+
+  if (group.is_archived !== undefined) {
+    fields.push("is_archived = ?");
+    values.push(group.is_archived ? 1 : 0);
+  }
+
+  if (fields.length === 0) {
+    return currentGroup; // Nothing to update
+  }
+
+  values.push(id); // For the WHERE clause
+
+  // Build and execute the query
+  const query = `UPDATE groups SET ${fields.join(", ")} WHERE id = ?`;
+  await db.run(query, values);
 
   return getGroupById(id);
 }
@@ -412,31 +522,39 @@ export async function isGroupAdmin(groupId: number | string, userId: number | st
 }
 
 // Alt grup işlemleri
-export async function getSubgroups(groupId: number | string): Promise<any[]> {
+export async function getSubgroups(groupId: number | string, includeArchived: boolean = false): Promise<any[]> {
+  const db = await getDB();
+
+  const query = includeArchived
+    ? `
+      SELECT s.*, u.username as creator_username, u.full_name as creator_full_name
+      FROM subgroups s
+      JOIN users u ON s.creator_id = u.id
+      WHERE s.group_id = ?
+      ORDER BY s.created_at DESC
+    `
+    : `
+      SELECT s.*, u.username as creator_username, u.full_name as creator_full_name
+      FROM subgroups s
+      JOIN users u ON s.creator_id = u.id
+      WHERE s.group_id = ? AND (s.is_archived = 0 OR s.is_archived IS NULL)
+      ORDER BY s.created_at DESC
+    `;
+
+  return db.all(query, [groupId]);
+}
+
+export async function getArchivedSubgroups(groupId: number | string): Promise<any[]> {
   const db = await getDB();
   return db.all(
     `
     SELECT s.*, u.username as creator_username, u.full_name as creator_full_name
     FROM subgroups s
     JOIN users u ON s.creator_id = u.id
-    WHERE s.group_id = ?
+    WHERE s.group_id = ? AND s.is_archived = 1
     ORDER BY s.created_at DESC
   `,
     [groupId]
-  );
-}
-
-export async function getSubgroupById(id: number | string): Promise<any | null> {
-  const db = await getDB();
-  return db.get(
-    `
-    SELECT s.*, u.username as creator_username, u.full_name as creator_full_name, g.name as group_name
-    FROM subgroups s
-    JOIN users u ON s.creator_id = u.id
-    JOIN groups g ON s.group_id = g.id
-    WHERE s.id = ?
-  `,
-    [id]
   );
 }
 
@@ -469,18 +587,43 @@ export async function createSubgroup(subgroup: {
 
 export async function updateSubgroup(
   id: number | string,
-  subgroup: { name: string; description?: string }
+  subgroup: { name?: string; description?: string; is_archived?: boolean }
 ): Promise<any | null> {
   const db = await getDB();
 
   try {
-    await db.run(
-      `
-      UPDATE subgroups SET name = ?, description = ?
-      WHERE id = ?
-    `,
-      [subgroup.name, subgroup.description || null, id]
-    );
+    // Get the current subgroup data
+    const currentSubgroup = await getSubgroupById(id);
+    if (!currentSubgroup) return null;
+
+    // Prepare the update fields and values
+    const fields = [];
+    const values = [];
+
+    if (subgroup.name !== undefined) {
+      fields.push("name = ?");
+      values.push(subgroup.name);
+    }
+
+    if (subgroup.description !== undefined) {
+      fields.push("description = ?");
+      values.push(subgroup.description || null);
+    }
+
+    if (subgroup.is_archived !== undefined) {
+      fields.push("is_archived = ?");
+      values.push(subgroup.is_archived ? 1 : 0);
+    }
+
+    if (fields.length === 0) {
+      return currentSubgroup; // Nothing to update
+    }
+
+    values.push(id); // For the WHERE clause
+
+    // Build and execute the query
+    const query = `UPDATE subgroups SET ${fields.join(", ")} WHERE id = ?`;
+    await db.run(query, values);
 
     return getSubgroupById(id);
   } catch (error) {
@@ -584,16 +727,22 @@ export async function getTaskAssignees(taskId: number | string): Promise<any[]> 
 export async function getTasksByGroupId(groupId: number | string): Promise<Task[]> {
   const db = await getDB();
 
-  // Get all tasks for this group
+  // Use explicit casting to ensure correct comparison
+  const idParam = typeof groupId === "string" ? parseInt(groupId, 10) || groupId : groupId;
+
+  // Get all tasks for this specific group with explicit WHERE clause
   const tasks = await db.all(
     `
-    SELECT t.*, g.name as group_name
+    SELECT t.*, g.name as group_name, sg.name as subgroup_name,
+           u.username as creator_username, u.full_name as creator_full_name
     FROM tasks t
     JOIN groups g ON t.group_id = g.id
+    LEFT JOIN subgroups sg ON t.subgroup_id = sg.id
+    JOIN users u ON t.created_by = u.id
     WHERE t.group_id = ?
     ORDER BY t.due_date ASC, t.priority DESC
   `,
-    [groupId]
+    [idParam]
   );
 
   // For each task, get the assignees
@@ -1188,10 +1337,11 @@ export async function updateGroupMemberRole(
 ): Promise<boolean> {
   const db = await getDB();
   try {
-    const result = await db.run(
-      "UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?",
-      [role, groupId, userId]
-    );
+    const result = await db.run("UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?", [
+      role,
+      groupId,
+      userId,
+    ]);
     return result.changes > 0;
   } catch (error) {
     console.error("Grup üyesi rolü güncellenirken hata:", error);
@@ -1202,16 +1352,28 @@ export async function updateGroupMemberRole(
 // Add a function to check if a user can create tasks in a group
 export async function canCreateTasksInGroup(groupId: number | string, userId: number | string): Promise<boolean> {
   const db = await getDB();
-  
+
   // First check if user is an admin
   const isAdmin = await isGroupAdmin(groupId, userId);
   if (isAdmin) return true;
-  
+
   // If not admin, check if the group allows members to create tasks
-  const group = await db.get(
-    "SELECT members_can_create_tasks FROM groups WHERE id = ?",
-    [groupId]
-  );
-  
+  const group = await db.get("SELECT members_can_create_tasks FROM groups WHERE id = ?", [groupId]);
+
   return group && group.members_can_create_tasks === 1;
+}
+
+// Exported function to get subgroup by ID
+export async function getSubgroupById(id: number | string): Promise<any | null> {
+  const db = await getDB();
+  return db.get(
+    `
+    SELECT s.*, u.username as creator_username, u.full_name as creator_full_name, g.name as group_name
+    FROM subgroups s
+    JOIN users u ON s.creator_id = u.id
+    JOIN groups g ON s.group_id = g.id
+    WHERE s.id = ?
+  `,
+    [id]
+  );
 }
