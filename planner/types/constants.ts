@@ -109,7 +109,7 @@ export const TASK_PRIORITY_OPTIONS = [
  * Uygulama genel sabitleri
  */
 export const APP_CONSTANTS = {
-  TITLE: "Planlayıcı Uygulaması",
+  TITLE: "Planner",
   FOOTER_TEXT: "Tüm hakları saklıdır",
   DEMO_EMAIL: "admin@example.com",
   DEMO_PASSWORD: "password",
