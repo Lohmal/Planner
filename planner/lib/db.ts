@@ -40,6 +40,8 @@ export async function getDB() {
       description TEXT,
       creator_id INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      members_can_create_tasks INTEGER DEFAULT 0,
+      is_archived INTEGER DEFAULT 0,
       FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
     )
   `);
@@ -67,6 +69,7 @@ export async function getDB() {
       group_id INTEGER NOT NULL,
       creator_id INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      is_archived INTEGER DEFAULT 0,
       FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
       FOREIGN KEY (creator_id) REFERENCES users (id) ON DELETE CASCADE
     )
@@ -86,6 +89,8 @@ export async function getDB() {
       created_by INTEGER NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      subgroup_id INTEGER DEFAULT NULL,
+      FOREIGN KEY (subgroup_id) REFERENCES subgroups (id) ON DELETE SET NULL,
       FOREIGN KEY (group_id) REFERENCES groups (id) ON DELETE CASCADE,
       FOREIGN KEY (assigned_to) REFERENCES users (id) ON DELETE SET NULL,
       FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE CASCADE
@@ -106,55 +111,6 @@ export async function getDB() {
       UNIQUE(task_id, user_id)
     )
   `);
-
-  // Check if subgroup_id column exists in tasks table and add it if it doesn't
-  const tableInfo = await db.all("PRAGMA table_info(tasks)");
-  const hasSubgroupId = tableInfo.some((column: { name: string }) => column.name === "subgroup_id");
-
-  if (!hasSubgroupId) {
-    // Add subgroup_id column to tasks table
-    await db.exec(`
-      ALTER TABLE tasks ADD COLUMN subgroup_id INTEGER DEFAULT NULL REFERENCES subgroups(id) ON DELETE SET NULL
-    `);
-    console.log("Added subgroup_id column to tasks table");
-  }
-
-  // Check if members_can_create_tasks column exists in groups table and add it if it doesn't
-  const groupsTableInfo = await db.all("PRAGMA table_info(groups)");
-  const hasTaskPermission = groupsTableInfo.some(
-    (column: { name: string }) => column.name === "members_can_create_tasks"
-  );
-
-  if (!hasTaskPermission) {
-    // Add members_can_create_tasks column to groups table
-    await db.exec(`
-      ALTER TABLE groups ADD COLUMN members_can_create_tasks INTEGER DEFAULT 0
-    `);
-    console.log("Added members_can_create_tasks column to groups table");
-  }
-
-  // Check if is_archived column exists in groups table and add it if it doesn't
-  const hasGroupArchived = groupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
-
-  if (!hasGroupArchived) {
-    // Add is_archived column to groups table
-    await db.exec(`
-      ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0
-    `);
-    console.log("Added is_archived column to groups table");
-  }
-
-  // Check if is_archived column exists in subgroups table and add it if it doesn't
-  const subgroupsTableInfo = await db.all("PRAGMA table_info(subgroups)");
-  const hasSubgroupArchived = subgroupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
-
-  if (!hasSubgroupArchived) {
-    // Add is_archived column to subgroups table
-    await db.exec(`
-      ALTER TABLE subgroups ADD COLUMN is_archived INTEGER DEFAULT 0
-    `);
-    console.log("Added is_archived column to subgroups table");
-  }
 
   // Bildirimler tablosu
   await db.exec(`
@@ -206,54 +162,9 @@ export async function getDB() {
 // Veritabanını başlatma fonksiyonu
 export async function initDB() {
   const db = await getDB();
-
-  // Check if subgroup_id column exists in tasks table and add it if it doesn't
-  const tableInfo = await db.all("PRAGMA table_info(tasks)");
-  const hasSubgroupId = tableInfo.some((column: { name: string }) => column.name === "subgroup_id");
-
-  if (!hasSubgroupId) {
-    // Add subgroup_id column to tasks table
-    await db.exec(`
-      ALTER TABLE tasks ADD COLUMN subgroup_id INTEGER DEFAULT NULL REFERENCES subgroups(id) ON DELETE SET NULL
-    `);
-    console.log("Added subgroup_id column to tasks table");
-  }
-
-  // Check if members_can_create_tasks column exists in groups table and add it if it doesn't
-  const groupsTableInfo = await db.all("PRAGMA table_info(groups)");
-  const hasTaskPermission = groupsTableInfo.some(
-    (column: { name: string }) => column.name === "members_can_create_tasks"
-  );
-
-  if (!hasTaskPermission) {
-    // Add members_can_create_tasks column to groups table
-    await db.exec(`
-      ALTER TABLE groups ADD COLUMN members_can_create_tasks INTEGER DEFAULT 0
-    `);
-    console.log("Added members_can_create_tasks column to groups table");
-  }
-
-  // Check if is_archived column exists in groups table and add it if it doesn't
-  const hasGroupArchived = groupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
-
-  if (!hasGroupArchived) {
-    // Add is_archived column to groups table
-    await db.exec(`
-      ALTER TABLE groups ADD COLUMN is_archived INTEGER DEFAULT 0
-    `);
-    console.log("Added is_archived column to groups table");
-  }
-
-  // Check if is_archived column exists in subgroups table and add it if it doesn't
-  const subgroupsTableInfo = await db.all("PRAGMA table_info(subgroups)");
-  const hasSubgroupArchived = subgroupsTableInfo.some((column: { name: string }) => column.name === "is_archived");
-
-  if (!hasSubgroupArchived) {
-    // Add is_archived column to subgroups table
-    await db.exec(`
-      ALTER TABLE subgroups ADD COLUMN is_archived INTEGER DEFAULT 0
-    `);
-    console.log("Added is_archived column to subgroups table");
+  // Veritabanı bağlantısını kontrol et
+  if (!db) {
+    throw new Error("Veritabanı bağlantısı kurulamadı.");
   }
 
   return db;
